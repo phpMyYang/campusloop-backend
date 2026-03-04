@@ -11,9 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('strands', function (Blueprint $table) {
-            $table->id();
+        Schema::create('advisory_student', function (Blueprint $table) {
+           $table->uuid('id')->primary();
+            $table->foreignUuid('advisory_class_id')->constrained('advisory_classes')->onDelete('cascade');
+            $table->foreignUuid('student_id')->constrained('users')->onDelete('cascade');
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 
@@ -22,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('strands');
+        Schema::dropIfExists('advisory_student');
     }
 };
