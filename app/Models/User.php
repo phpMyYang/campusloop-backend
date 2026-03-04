@@ -21,9 +21,9 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name',
-        'email',
-        'password',
+        'avatar', 'first_name', 'last_name', 'gender', 'birthday', 
+        'email', 'password', 'role', 'status', 'lrn', 'strand_id', 
+        'current_session_id', 'last_login_at'
     ];
 
     /**
@@ -47,5 +47,20 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function strand()
+    {
+        return $this->belongsTo(Strand::class); 
+    }
+
+    public function classrooms()
+    {
+        return $this->hasMany(Classroom::class, 'creator_id'); 
+    }
+
+    public function advisory_classes()
+    {
+        return $this->hasMany(AdvisoryClass::class, 'teacher_id');
     }
 }

@@ -6,20 +6,15 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Strand extends Model
+class Subject extends Model
 {
     use HasUuids, SoftDeletes;
 
-    protected $fillable = ['name', 'description'];
+    protected $fillable = ['code', 'description', 'strand_id', 'grade_level', 'semester'];
 
-    public function users()
+    public function strand()
     {
-        return $this->hasMany(User::class); 
-    }
-
-    public function subjects()
-    {
-        return $this->hasMany(Subject::class); 
+        return $this->belongsTo(Strand::class);
     }
 
     public function classrooms()
