@@ -3,6 +3,8 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
+// Admin
+use App\Http\Controllers\Api\UserController;
 
 // Public Auth Routes (Hindi kailangan ng token)
 Route::post('/login', [AuthController::class, 'login']);
@@ -13,6 +15,13 @@ Route::post('/verify-email', [AuthController::class, 'verifyEmail']);
 
 // Protected Routes (Kailangan naka-login/may token bago ma-access)
 Route::middleware('auth:sanctum')->group(function () {
+
+    // User Records API
+    Route::get('/users', [UserController::class, 'index']);
+    Route::post('/users', [UserController::class, 'store']);
+    Route::put('/users/{id}', [UserController::class, 'update']);
+    Route::delete('/users/{id}', [UserController::class, 'destroy']);
+    Route::post('/users/bulk-delete', [UserController::class, 'bulkDestroy']); // Para sa maramihang delete
     
     // Kunin ang current logged-in user data
     Route::get('/user', function (Request $request) {
