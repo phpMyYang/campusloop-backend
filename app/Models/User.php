@@ -23,7 +23,7 @@ class User extends Authenticatable
     protected $fillable = [
         'avatar', 'first_name', 'last_name', 'gender', 'birthday', 
         'email', 'password', 'role', 'status', 'lrn', 'strand_id', 
-        'current_session_id', 'last_login_at'
+        'current_session_id', 'last_login_at', 'email_verified_at'
     ];
 
     /**
