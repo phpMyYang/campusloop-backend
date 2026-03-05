@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 // Admin
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\StrandController;
 
 // Public Auth Routes (Hindi kailangan ng token)
 Route::post('/login', [AuthController::class, 'login']);
@@ -21,7 +22,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/users', [UserController::class, 'store']);
     Route::put('/users/{id}', [UserController::class, 'update']);
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
-    Route::post('/users/bulk-delete', [UserController::class, 'bulkDestroy']); // Para sa maramihang delete
+    Route::post('/users/bulk-delete', [UserController::class, 'bulkDestroy']);
+
+    // Academic Management - Strands
+    Route::get('/strands', [StrandController::class, 'index']);
+    Route::post('/strands', [StrandController::class, 'store']);
+    Route::put('/strands/{id}', [StrandController::class, 'update']);
+    Route::delete('/strands/{id}', [StrandController::class, 'destroy']);
     
     // Kunin ang current logged-in user data
     Route::get('/user', function (Request $request) {
