@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AuthController;
 // Admin
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\StrandController;
+use App\Http\Controllers\Api\SystemSettingController;
 
 // Public Auth Routes (Hindi kailangan ng token)
 Route::post('/login', [AuthController::class, 'login']);
@@ -29,6 +30,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/strands', [StrandController::class, 'store']);
     Route::put('/strands/{id}', [StrandController::class, 'update']);
     Route::delete('/strands/{id}', [StrandController::class, 'destroy']);
+
+    // System Settings
+    Route::get('/settings', [SystemSettingController::class, 'index']);
+    Route::post('/settings', [SystemSettingController::class, 'store']);
+    Route::post('/settings/reset', [SystemSettingController::class, 'reset']);
     
     // Kunin ang current logged-in user data
     Route::get('/user', function (Request $request) {
