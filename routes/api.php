@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\StrandController;
 use App\Http\Controllers\Api\SystemSettingController;
+use App\Http\Controllers\Api\SubjectController;
 
 // Public Auth Routes (Hindi kailangan ng token)
 Route::post('/login', [AuthController::class, 'login']);
@@ -35,6 +36,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/settings', [SystemSettingController::class, 'index']);
     Route::post('/settings', [SystemSettingController::class, 'store']);
     Route::post('/settings/reset', [SystemSettingController::class, 'reset']);
+
+    // Academic Management - Subjects
+    Route::get('/subjects', [SubjectController::class, 'index']);
+    Route::post('/subjects', [SubjectController::class, 'store']);
+    Route::put('/subjects/{id}', [SubjectController::class, 'update']);
+    Route::delete('/subjects/{id}', [SubjectController::class, 'destroy']);
+    Route::post('/subjects/bulk-delete', [SubjectController::class, 'bulkDelete']);
     
     // Kunin ang current logged-in user data
     Route::get('/user', function (Request $request) {
