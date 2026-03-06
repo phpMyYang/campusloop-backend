@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\StrandController;
 use App\Http\Controllers\Api\SystemSettingController;
 use App\Http\Controllers\Api\SubjectController;
+use App\Http\Controllers\Api\AnnouncementController;
 
 // Public Auth Routes (Hindi kailangan ng token)
 Route::post('/login', [AuthController::class, 'login']);
@@ -43,6 +44,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/subjects/{id}', [SubjectController::class, 'update']);
     Route::delete('/subjects/{id}', [SubjectController::class, 'destroy']);
     Route::post('/subjects/bulk-delete', [SubjectController::class, 'bulkDelete']);
+
+    // Content Approval - Announcement
+    Route::get('/announcements', [AnnouncementController::class, 'index']);
+    Route::post('/announcements', [AnnouncementController::class, 'store']);
+    Route::post('/announcements/bulk-delete', [AnnouncementController::class, 'bulkDelete']);
+    Route::put('/announcements/{id}', [AnnouncementController::class, 'update']);
+    Route::delete('/announcements/{id}', [AnnouncementController::class, 'destroy']);
     
     // Kunin ang current logged-in user data
     Route::get('/user', function (Request $request) {
