@@ -47,15 +47,13 @@ class UserController extends Controller
         $rawPassword = $request->password ? $request->password : Str::random(10);
         $validated['password'] = Hash::make($rawPassword);
 
-        // GOAL 1: Laging NULL ang email_verified_at sa pag-create para piliting dumaan sa Verification Link.
         $validated['email_verified_at'] = null; 
 
         $user = User::create($validated);
 
-        if (in_array($user->role, ['teacher', 'student'])) {
-            $folderName = str_replace(' ', '_', strtolower($user->first_name . '_' . $user->last_name . '_' . $user->id));
-            Storage::disk('public')->makeDirectory("users_files/{$folderName}");
-        }
+        // Automatic na gagawan ng folder ang LAHAT ng users
+        $folderName = str_replace(' ', '_', strtolower($user->first_name . '_' . $user->last_name . '_' . $user->id));
+        Storage::disk('public')->makeDirectory("users_files/{$folderName}");
 
         // SEND WELCOME & VERIFICATION EMAIL
         $verifyLink = env('FRONTEND_URL') . '/verify?id=' . $user->id . '&hash=' . sha1($user->email);
@@ -78,7 +76,6 @@ class UserController extends Controller
     {
         $user = User::findOrFail($id);
         
-        // I-save ang kopya ng lumang data bago natin i-update
         $originalUser = clone $user;
 
         $validated = $request->validate([
@@ -100,7 +97,6 @@ class UserController extends Controller
             unset($validated['password']);
         }
 
-        // Logic para sa status change
         if ($request->status === 'inactive') {
             $validated['email_verified_at'] = null;
         } elseif ($request->status === 'active' && is_null($user->email_verified_at)) {
@@ -111,6 +107,22 @@ class UserController extends Controller
         $dirtyAttributes = $user->getDirty(); 
         $user->save();
 
+        // FOLDER RENAME LOGIC
+        // Kung may nagbago sa First Name o Last Name
+        if (isset($dirtyAttributes['first_name']) || isset($dirtyAttributes['last_name'])) {
+            $oldFolderName = str_replace(' ', '_', strtolower($originalUser->first_name . '_' . $originalUser->last_name . '_' . $originalUser->id));
+            $newFolderName = str_replace(' ', '_', strtolower($user->first_name . '_' . $user->last_name . '_' . $user->id));
+
+            // I-check kung nag-eexist yung lumang folder bago i-rename
+            if (Storage::disk('public')->exists("users_files/{$oldFolderName}")) {
+                Storage::disk('public')->move("users_files/{$oldFolderName}", "users_files/{$newFolderName}");
+            } else {
+                // Kung sakaling nawala o hindi nagawa dati, gawan ng bago
+                Storage::disk('public')->makeDirectory("users_files/{$newFolderName}");
+            }
+        }
+
+        // SET EMAIL NOTIFICATION LABELS
         $labels = [
             'first_name' => 'First Name',
             'last_name' => 'Last Name',
@@ -135,12 +147,11 @@ class UserController extends Controller
 
         if ($request->filled('password')) {
             $changedFields['Password'] = [
-                'old' => '********', // Nakatago ang lumang password para sa security
-                'new' => $request->password // Ipapakita ang bagong raw password
+                'old' => '********',
+                'new' => $request->password 
             ];
         }
 
-        // Magse-send lang ng email kung mayroong aktwal na nagbago
         if (count($changedFields) > 0) {
             Mail::send('emails.user_updated', [
                 'user' => $user,
@@ -156,7 +167,6 @@ class UserController extends Controller
 
     public function destroy(Request $request, $id)
     {
-        // Bawal i-delete ang sarili
         if ($request->user()->id == $id) {
             return response()->json(['message' => 'Action denied. You cannot delete your own account.'], 403);
         }
@@ -170,7 +180,6 @@ class UserController extends Controller
     {
         $request->validate(['ids' => 'required|array']);
         
-        // I-filter ang array at tanggalin ang ID ng current Admin kung sakaling nasama
         $idsToDelete = array_filter($request->ids, function($id) use ($request) {
             return $id != $request->user()->id;
         });
