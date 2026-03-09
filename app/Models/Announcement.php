@@ -14,13 +14,34 @@ class Announcement extends Model
         'creator_id', 
         'title', 
         'content', 
-        'link', 
-        'status'
+        'link',
+        'publish_from',
+        'valid_until'
     ];
+
+    protected $casts = [
+        'publish_from' => 'datetime',
+        'valid_until' => 'datetime',
+    ];
+
+    protected $appends = ['status'];
 
     public function creator()
     {
         return $this->belongsTo(User::class, 'creator_id');
+    }
+
+    public function getStatusAttribute()
+    {
+        $now = now();
+        
+        if ($this->publish_from && $now->lt($this->publish_from)) {
+            return 'Pending'; // Kung ang current time ay bago pa sa publish_from
+        } elseif ($this->valid_until && $now->gt($this->valid_until)) {
+            return 'Done'; // Kung ang current time ay lampas na sa valid_until
+        }
+        
+        return 'Published'; // Kung nasa loob na ng valid date range
     }
 
     // Polymorphic connection para sa attachments ng announcement
