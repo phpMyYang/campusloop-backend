@@ -26,6 +26,8 @@ class AnnouncementController extends Controller
             'title' => 'required|string|max:255',
             'content' => 'required|string',
             'link' => 'nullable|url',
+            'publish_from' => 'required|date',
+            'valid_until' => 'required|date|after:publish_from', // Dapat mas huli ang valid_until kaysa publish_from
             // File Validation: Specific types only, Max 20MB per file
             'files.*' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx,png,jpg,jpeg,gif,mp4,mov,avi|max:20480' 
         ]);
@@ -35,7 +37,8 @@ class AnnouncementController extends Controller
             'title' => $validated['title'],
             'content' => $validated['content'],
             'link' => $validated['link'] ?? null,
-            'status' => 'Published'
+            'publish_from' => date('Y-m-d H:i:s', strtotime($validated['publish_from'])),
+            'valid_until' => date('Y-m-d H:i:s', strtotime($validated['valid_until'])),
         ]);
 
         if ($request->hasFile('files')) {
@@ -62,24 +65,26 @@ class AnnouncementController extends Controller
             'title' => 'required|string|max:255',
             'content' => 'required|string',
             'link' => 'nullable',
+            'publish_from' => 'required|date',
+            'valid_until' => 'required|date|after:publish_from',
             'files.*' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx,png,jpg,jpeg,gif,mp4,mov,avi|max:20480',
-            'deleted_file_ids' => 'nullable|array' // Array ng mga ID ng files na tinanggal
         ]);
 
         $announcement->update([
             'title' => $validated['title'],
             'content' => $validated['content'],
-            'link' => $validated['link'] === 'null' || empty($validated['link']) ? null : $validated['link'],
+            'link' => empty($validated['link']) || $validated['link'] === 'null' ? null : $validated['link'],
+            'publish_from' => date('Y-m-d H:i:s', strtotime($validated['publish_from'])),
+            'valid_until' => date('Y-m-d H:i:s', strtotime($validated['valid_until'])),
         ]);
 
-        // Tanggalin ang mga files na in-X sa frontend
-        if (!empty($validated['deleted_file_ids'])) {
-            $filesToDelete = File::whereIn('id', $validated['deleted_file_ids'])->get();
+        // Ginamit natin ang $request directly at inayos ang SoftDeletes
+        if ($request->has('deleted_file_ids') && is_array($request->deleted_file_ids)) {
+            $filesToDelete = File::whereIn('id', $request->deleted_file_ids)->get();
             foreach ($filesToDelete as $file) {
-                // Tanggalin sa local storage
-                $rawPath = str_replace('/storage/', '', $file->path);
-                Storage::disk('public')->delete($rawPath);
-                $file->delete(); // Alisin sa database
+                // Inalis natin ang Storage::delete() para hindi tuluyang mawala sa server
+                // Para pwede pa siyang i-restore sa Recycle Bin feature mo mamaya!
+                $file->delete(); 
             }
         }
 
