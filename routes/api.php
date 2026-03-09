@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\StrandController;
 use App\Http\Controllers\Api\SystemSettingController;
 use App\Http\Controllers\Api\SubjectController;
 use App\Http\Controllers\Api\AnnouncementController;
+use App\Http\Controllers\Api\CalendarController;
 
 // Public Auth Routes (Hindi kailangan ng token)
 Route::post('/login', [AuthController::class, 'login']);
@@ -51,6 +52,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/announcements/bulk-delete', [AnnouncementController::class, 'bulkDelete']);
     Route::put('/announcements/{id}', [AnnouncementController::class, 'update']);
     Route::delete('/announcements/{id}', [AnnouncementController::class, 'destroy']);
+
+    // Calendar - Admin
+    Route::get('/calendar/admin/events', [CalendarController::class, 'getAdminEvents']);
+    Route::get('/calendar/active-indicator', [CalendarController::class, 'checkActiveIndicator']);
     
     // Kunin ang current logged-in user data
     Route::get('/user', function (Request $request) {
