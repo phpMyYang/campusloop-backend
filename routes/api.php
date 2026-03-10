@@ -10,6 +10,8 @@ use App\Http\Controllers\Api\SystemSettingController;
 use App\Http\Controllers\Api\SubjectController;
 use App\Http\Controllers\Api\AnnouncementController;
 use App\Http\Controllers\Api\CalendarController;
+// Teacher
+use App\Http\Controllers\Api\ClassroomController;
 
 // Public Auth Routes (Hindi kailangan ng token)
 Route::post('/login', [AuthController::class, 'login']);
@@ -56,6 +58,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // Calendar - Admin
     Route::get('/calendar/admin/events', [CalendarController::class, 'getAdminEvents']);
     Route::get('/calendar/active-indicator', [CalendarController::class, 'checkActiveIndicator']);
+
+    // Teacher Classrooms
+    Route::get('/classrooms', [ClassroomController::class, 'index']);
+    Route::post('/classrooms', [ClassroomController::class, 'store']);
+    Route::put('/classrooms/{id}', [ClassroomController::class, 'update']);
+    Route::delete('/classrooms/{id}', [ClassroomController::class, 'destroy']);
     
     // Kunin ang current logged-in user data
     Route::get('/user', function (Request $request) {

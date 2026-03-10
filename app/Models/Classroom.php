@@ -16,6 +16,10 @@ class Classroom extends Model
         'code', 'school_year', 'semester'
     ];
 
+    protected $casts = [
+        'schedule' => 'array',
+    ];
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'creator_id'); 
