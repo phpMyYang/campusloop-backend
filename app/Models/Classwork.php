@@ -11,8 +11,12 @@ class Classwork extends Model
     use HasUuids, SoftDeletes;
 
     protected $fillable = [
-        'classroom_id', 'type', 'instruction', 'points', 
+        'classroom_id', 'title', 'type', 'instruction', 'points', 
         'deadline', 'form_id', 'link'
+    ];
+
+    protected $casts = [
+        'deadline' => 'datetime',
     ];
 
     public function classroom()

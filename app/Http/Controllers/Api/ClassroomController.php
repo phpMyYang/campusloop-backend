@@ -63,6 +63,18 @@ class ClassroomController extends Controller
         return response()->json(['message' => 'Classroom created successfully!', 'code' => $code], 201);
     }
 
+    public function show(Request $request, $id)
+    {
+        $classroom = Classroom::with(['subject', 'strand', 'creator'])
+            ->withCount(['students as enrolled_count' => function ($query) {
+                $query->where('classroom_student.status', 'approved');
+            }])
+            ->where('creator_id', $request->user()->id)
+            ->findOrFail($id); // Siguraduhing findOrFail ito at hindi get()
+
+        return response()->json($classroom, 200);
+    }
+
     public function update(Request $request, $id)
     {
         $classroom = Classroom::where('creator_id', $request->user()->id)->findOrFail($id);

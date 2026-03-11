@@ -42,4 +42,9 @@ class Classroom extends Model
                     ->withPivot('id', 'status', 'deleted_at')
                     ->withTimestamps();
     }
+
+    public function classworks()
+    {
+        return $this->hasMany(Classwork::class);
+    }
 }
