@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\CalendarController;
 // Teacher
 use App\Http\Controllers\Api\ClassroomController;
 use App\Http\Controllers\Api\ClassworkController;
+use App\Http\Controllers\Api\ClassroomStudentController;
 
 // Public Auth Routes (Hindi kailangan ng token)
 Route::post('/login', [AuthController::class, 'login']);
@@ -65,13 +66,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/classrooms', [ClassroomController::class, 'store']);
     Route::put('/classrooms/{id}', [ClassroomController::class, 'update']);
     Route::delete('/classrooms/{id}', [ClassroomController::class, 'destroy']);
-    Route::get('/classrooms/{id}', [ClassroomController::class, 'show']); // ✅ Nilinis natin ito
+    Route::get('/classrooms/{id}', [ClassroomController::class, 'show']); 
 
     // Teacher Classworks
     Route::get('/classrooms/{classroomId}/classworks', [ClassworkController::class, 'index']);
     Route::post('/classrooms/{classroomId}/classworks', [ClassworkController::class, 'store']);
     Route::put('/classworks/{id}', [ClassworkController::class, 'update']);
     Route::delete('/classworks/{id}', [ClassworkController::class, 'destroy']);
+
+    // Teacher Classroom Students
+    Route::get('/classrooms/{classroomId}/students', [ClassroomStudentController::class, 'index']);
+    Route::post('/classrooms/{classroomId}/students/approve', [ClassroomStudentController::class, 'approve']);
+    Route::post('/classrooms/{classroomId}/students/remove', [ClassroomStudentController::class, 'remove']);
 
     // Kunin ang current logged-in user data
     Route::get('/user', function (Request $request) {
