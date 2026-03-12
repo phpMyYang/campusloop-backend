@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\ClassroomController;
 use App\Http\Controllers\Api\ClassworkController;
 use App\Http\Controllers\Api\ClassroomStudentController;
 use App\Http\Controllers\Api\ClassroomGradeController;
+use App\Http\Controllers\Api\FormController;
 
 // Public Auth Routes (Hindi kailangan ng token)
 Route::post('/login', [AuthController::class, 'login']);
@@ -82,6 +83,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Teacher Classroom Grades (Digital Class Record)
     Route::get('/classrooms/{classroomId}/grades', [ClassroomGradeController::class, 'index']);
+
+    // Teacher Forms
+    Route::get('/forms', [FormController::class, 'index']);
+    Route::post('/forms', [FormController::class, 'store']);
+    Route::put('/forms/{id}', [FormController::class, 'update']);
+    Route::delete('/forms/{id}', [FormController::class, 'destroy']);
+    Route::post('/forms/{id}/duplicate', [FormController::class, 'duplicate']);
 
     // Kunin ang current logged-in user data
     Route::get('/user', function (Request $request) {
