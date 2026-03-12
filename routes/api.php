@@ -16,6 +16,8 @@ use App\Http\Controllers\Api\ClassworkController;
 use App\Http\Controllers\Api\ClassroomStudentController;
 use App\Http\Controllers\Api\ClassroomGradeController;
 use App\Http\Controllers\Api\FormController;
+use App\Http\Controllers\Api\FormQuestionController;
+use App\Http\Controllers\Api\ELibraryController;
 
 // Public Auth Routes (Hindi kailangan ng token)
 Route::post('/login', [AuthController::class, 'login']);
@@ -92,9 +94,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/forms/{id}/duplicate', [FormController::class, 'duplicate']);
     Route::get('/forms/{id}', [FormController::class, 'show']);
     Route::get('/forms/{id}/respondents', [FormController::class, 'respondents']);
-    Route::post('/forms/{id}/questions', [\App\Http\Controllers\Api\FormQuestionController::class, 'store']);
-    Route::put('/questions/{id}', [\App\Http\Controllers\Api\FormQuestionController::class, 'update']);
-    Route::delete('/questions/{id}', [\App\Http\Controllers\Api\FormQuestionController::class, 'destroy']);
+    Route::post('/forms/{id}/questions', [FormQuestionController::class, 'store']);
+    Route::put('/questions/{id}', [FormQuestionController::class, 'update']);
+    Route::delete('/questions/{id}', [FormQuestionController::class, 'destroy']);
+
+    Route::apiResource('e-libraries', ELibraryController::class);
 
     // Kunin ang current logged-in user data
     Route::get('/user', function (Request $request) {
