@@ -88,4 +88,28 @@ class FormController extends Controller
 
         return response()->json(['message' => 'Form duplicated successfully!', 'form' => $newForm], 201);
     }
+
+    // Kukunin ang Form kasama ang Questions
+    public function show(Request $request, $id)
+    {
+        $form = Form::with(['questions' => function ($query) {
+            $query->orderBy('created_at', 'asc');
+        }])->where('creator_id', $request->user()->id)->findOrFail($id);
+
+        return response()->json($form, 200);
+    }
+
+    // Kukunin ang mga Estudyanteng sumagot (Respondents)
+    public function respondents(Request $request, $id)
+    {
+        // I-verify muna na sa teacher ang form na ito
+        Form::where('creator_id', $request->user()->id)->findOrFail($id);
+
+        $submissions = \App\Models\FormSubmission::with(['student.strand'])
+            ->where('form_id', $id)
+            ->orderBy('submitted_at', 'desc')
+            ->get();
+
+        return response()->json($submissions, 200);
+    }
 }
