@@ -90,6 +90,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/forms/{id}', [FormController::class, 'update']);
     Route::delete('/forms/{id}', [FormController::class, 'destroy']);
     Route::post('/forms/{id}/duplicate', [FormController::class, 'duplicate']);
+    Route::get('/forms/{id}', [FormController::class, 'show']);
+    Route::get('/forms/{id}/respondents', [FormController::class, 'respondents']);
 
     // Kunin ang current logged-in user data
     Route::get('/user', function (Request $request) {
