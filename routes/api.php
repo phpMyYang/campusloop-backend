@@ -92,6 +92,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/forms/{id}/duplicate', [FormController::class, 'duplicate']);
     Route::get('/forms/{id}', [FormController::class, 'show']);
     Route::get('/forms/{id}/respondents', [FormController::class, 'respondents']);
+    Route::post('/forms/{id}/questions', [\App\Http\Controllers\Api\FormQuestionController::class, 'store']);
+    Route::put('/questions/{id}', [\App\Http\Controllers\Api\FormQuestionController::class, 'update']);
+    Route::delete('/questions/{id}', [\App\Http\Controllers\Api\FormQuestionController::class, 'destroy']);
 
     // Kunin ang current logged-in user data
     Route::get('/user', function (Request $request) {
