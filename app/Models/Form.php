@@ -15,6 +15,11 @@ class Form extends Model
         'is_shuffle_questions', 'is_focus_mode', 'duplicate_from_id'
     ];
 
+    protected $casts = [
+        'is_shuffle_questions' => 'boolean',
+        'is_focus_mode' => 'boolean',
+    ];
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'creator_id');
