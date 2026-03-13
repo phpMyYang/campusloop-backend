@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\SystemSettingController;
 use App\Http\Controllers\Api\SubjectController;
 use App\Http\Controllers\Api\AnnouncementController;
 use App\Http\Controllers\Api\CalendarController;
+use App\Http\Controllers\Api\AdminELibraryController;
 // Teacher
 use App\Http\Controllers\Api\ClassroomController;
 use App\Http\Controllers\Api\ClassworkController;
@@ -30,41 +31,47 @@ Route::post('/verify-email', [AuthController::class, 'verifyEmail']);
 // Protected Routes (Kailangan naka-login/may token bago ma-access)
 Route::middleware('auth:sanctum')->group(function () {
 
-    // User Records API
+    // Admin User Records
     Route::get('/users', [UserController::class, 'index']);
     Route::post('/users', [UserController::class, 'store']);
     Route::put('/users/{id}', [UserController::class, 'update']);
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
     Route::post('/users/bulk-delete', [UserController::class, 'bulkDestroy']);
 
-    // Academic Management - Strands
+    // Admin Academic Management - Strands
     Route::get('/strands', [StrandController::class, 'index']);
     Route::post('/strands', [StrandController::class, 'store']);
     Route::put('/strands/{id}', [StrandController::class, 'update']);
     Route::delete('/strands/{id}', [StrandController::class, 'destroy']);
 
-    // System Settings
+    // Admin System Settings
     Route::get('/settings', [SystemSettingController::class, 'index']);
     Route::post('/settings', [SystemSettingController::class, 'store']);
     Route::post('/settings/reset', [SystemSettingController::class, 'reset']);
 
-    // Academic Management - Subjects
+    // Admin Academic Management - Subjects
     Route::get('/subjects', [SubjectController::class, 'index']);
     Route::post('/subjects', [SubjectController::class, 'store']);
     Route::put('/subjects/{id}', [SubjectController::class, 'update']);
     Route::delete('/subjects/{id}', [SubjectController::class, 'destroy']);
     Route::post('/subjects/bulk-delete', [SubjectController::class, 'bulkDelete']);
 
-    // Content Approval - Announcement
+    // Admin Content Approval - Announcement
     Route::get('/announcements', [AnnouncementController::class, 'index']);
     Route::post('/announcements', [AnnouncementController::class, 'store']);
     Route::post('/announcements/bulk-delete', [AnnouncementController::class, 'bulkDelete']);
     Route::put('/announcements/{id}', [AnnouncementController::class, 'update']);
     Route::delete('/announcements/{id}', [AnnouncementController::class, 'destroy']);
 
-    // Calendar - Admin
+    // Admin Calendar
     Route::get('/calendar/admin/events', [CalendarController::class, 'getAdminEvents']);
     Route::get('/calendar/active-indicator', [CalendarController::class, 'checkActiveIndicator']);
+
+    // Admin E-Library
+    Route::get('/admin/e-libraries', [AdminELibraryController::class, 'index']);
+    Route::post('/admin/e-libraries/approve', [AdminELibraryController::class, 'bulkApprove']);
+    Route::post('/admin/e-libraries/decline', [AdminELibraryController::class, 'bulkDecline']);
+    Route::post('/admin/e-libraries/delete', [AdminELibraryController::class, 'bulkDelete']);
 
     // Teacher Classrooms
     Route::get('/classrooms', [ClassroomController::class, 'index']);
