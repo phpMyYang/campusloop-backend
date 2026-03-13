@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\ClassroomGradeController;
 use App\Http\Controllers\Api\FormController;
 use App\Http\Controllers\Api\FormQuestionController;
 use App\Http\Controllers\Api\ELibraryController;
+use App\Http\Controllers\Api\AdvisoryClassController;
 
 // Public Auth Routes (Hindi kailangan ng token)
 Route::post('/login', [AuthController::class, 'login']);
@@ -97,8 +98,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/forms/{id}/questions', [FormQuestionController::class, 'store']);
     Route::put('/questions/{id}', [FormQuestionController::class, 'update']);
     Route::delete('/questions/{id}', [FormQuestionController::class, 'destroy']);
-
+    
+    // Teacher ELibrary
     Route::apiResource('e-libraries', ELibraryController::class);
+
+    // Teacher Advisory Class
+    Route::apiResource('advisory-classes', AdvisoryClassController::class);
+    Route::get('advisory-classes/{id}/available-students', [AdvisoryClassController::class, 'getAvailableStudents']);
+    Route::post('advisory-classes/{id}/add-students', [AdvisoryClassController::class, 'addStudents']);
+    Route::delete('advisory-classes/{classId}/students/{studentId}', [AdvisoryClassController::class, 'removeStudent']);
+    Route::get('/advisory-classes/{classId}/students/{studentId}/grades', [AdvisoryClassController::class, 'getStudentGrades']);
+    Route::post('/advisory-classes/{classId}/students/{studentId}/grades', [AdvisoryClassController::class, 'storeStudentGrade']);
+    Route::put('/advisory-classes/{classId}/students/{studentId}/grades/{gradeId}', [AdvisoryClassController::class, 'updateStudentGrade']);
 
     // Kunin ang current logged-in user data
     Route::get('/user', function (Request $request) {
