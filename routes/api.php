@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\SubjectController;
 use App\Http\Controllers\Api\AnnouncementController;
 use App\Http\Controllers\Api\CalendarController;
 use App\Http\Controllers\Api\AdminELibraryController;
+use App\Http\Controllers\Api\AdminGradeController;
 // Teacher
 use App\Http\Controllers\Api\ClassroomController;
 use App\Http\Controllers\Api\ClassworkController;
@@ -72,6 +73,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/admin/e-libraries/approve', [AdminELibraryController::class, 'bulkApprove']);
     Route::post('/admin/e-libraries/decline', [AdminELibraryController::class, 'bulkDecline']);
     Route::post('/admin/e-libraries/delete', [AdminELibraryController::class, 'bulkDelete']);
+
+    // ADMIN: STUDENT GRADES MANAGEMENT
+    Route::get('/admin/student-grades', [AdminGradeController::class, 'index']);
+    Route::get('/admin/student-grades/{studentId}', [AdminGradeController::class, 'showStudentGrades']);
+    Route::post('/admin/student-grades/approve', [AdminGradeController::class, 'approveGrade']);
+    Route::post('/admin/student-grades/decline', [AdminGradeController::class, 'declineGrade']);
 
     // Teacher Classrooms
     Route::get('/classrooms', [ClassroomController::class, 'index']);
