@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\AdminGradeController;
 // Teacher
 use App\Http\Controllers\Api\ClassroomController;
 use App\Http\Controllers\Api\ClassworkController;
+use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\ClassroomStudentController;
 use App\Http\Controllers\Api\ClassroomGradeController;
 use App\Http\Controllers\Api\FormController;
@@ -94,6 +95,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/classrooms/{classroomId}/classworks', [ClassworkController::class, 'store']);
     Route::put('/classworks/{id}', [ClassworkController::class, 'update']);
     Route::delete('/classworks/{id}', [ClassworkController::class, 'destroy']);
+    // Comment & Reply
+    Route::post('/classworks/{id}/comments', [CommentController::class, 'store']);
 
     // Teacher Classroom Students
     Route::get('/classrooms/{classroomId}/students', [ClassroomStudentController::class, 'index']);
@@ -130,6 +133,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Student Classrooms
     Route::get('/student/classrooms', [StudentClassroomController::class, 'index']);
     Route::post('/student/classrooms/join', [StudentClassroomController::class, 'joinClassroom']);
+    Route::get('/student/classrooms/{id}', [StudentClassroomController::class, 'show']);
+    Route::get('/student/classrooms/{id}/stream', [StudentClassroomController::class, 'stream']);
+    Route::get('/student/classrooms/{id}/grades', [StudentClassroomController::class, 'grades']);
 
     // Kunin ang current logged-in user data
     Route::get('/user', function (Request $request) {
