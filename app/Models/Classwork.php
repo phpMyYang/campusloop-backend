@@ -24,13 +24,23 @@ class Classwork extends Model
         return $this->belongsTo(Classroom::class);
     }
 
-    public function form()
-    {
-        return $this->belongsTo(Form::class); 
+    public function form() 
+    { 
+        return $this->belongsTo(Form::class, 'form_id'); 
+    }
+
+    public function files() 
+    { 
+        return $this->morphMany(File::class, 'attachable'); 
     }
 
     public function classwork_submissions()
     {
         return $this->hasMany(ClassworkSubmission::class); 
+    }
+
+    public function comments()
+    {
+        return $this->morphMany(Comment::class, 'commentable');
     }
 }
