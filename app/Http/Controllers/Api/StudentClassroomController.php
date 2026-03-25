@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Classroom;
 use App\Models\Classwork;
+use App\Models\File; 
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage; 
 
 class StudentClassroomController extends Controller
 {
@@ -19,7 +21,7 @@ class StudentClassroomController extends Controller
 
             $classrooms = Classroom::whereHas('students', function ($query) use ($studentId) {
                 $query->where('classroom_student.student_id', $studentId)
-                      ->where('classroom_student.status', 'approved'); 
+                      ->where('classroom_student.status', 'approved');
             })
             ->with(['creator', 'subject', 'strand'])
             ->withCount(['students as enrolled_count' => function ($query) {
@@ -42,6 +44,7 @@ class StudentClassroomController extends Controller
             ]);
 
             $studentId = Auth::id();
+            
             $classroom = Classroom::where('code', $request->code)->first();
 
             if (!$classroom) {
@@ -101,6 +104,7 @@ class StudentClassroomController extends Controller
     {
         try {
             $studentId = Auth::id();
+
             $classworks = Classwork::with([
                 'files', 
                 'form',
@@ -121,10 +125,21 @@ class StudentClassroomController extends Controller
                     ->where('student_id', $studentId)
                     ->first();
                 
-                $cw->student_submission = $submission;
-                
                 if ($submission) {
-                    $cw->student_status = 'DONE';
+                    $submission->files = File::where('attachable_type', 'classwork_submission')
+                        ->where('attachable_id', $submission->id)
+                        ->get();
+
+                    // CHECK NATIN KUNG MAY GRADE NA O KUNG RETURNED
+                    if ($submission->grade !== null) {
+                        $cw->student_status = 'GRADED';
+                    } elseif ($submission->status === 'pending' && $submission->teacher_feedback !== null) {
+                        $cw->student_status = 'RETURNED';
+                    } elseif ($submission->status === 'late_submission') {
+                        $cw->student_status = 'DONE LATE';
+                    } else {
+                        $cw->student_status = 'DONE';
+                    }
                 } else {
                     if ($cw->deadline) {
                         $deadline = \Carbon\Carbon::parse($cw->deadline);
@@ -141,11 +156,148 @@ class StudentClassroomController extends Controller
                         $cw->student_status = 'PENDING';
                     }
                 }
+                
+                $cw->student_submission = $submission;
             }
 
             return response()->json($classworks, 200);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Failed to load stream: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function submitWork(Request $request, $classworkId)
+    {
+        try {
+            $request->validate([
+                'files.*' => 'file|max:51200' 
+            ]);
+
+            $studentId = Auth::id();
+            $classwork = Classwork::findOrFail($classworkId);
+
+            $existingSubmission = DB::table('classwork_submissions')
+                ->where('classwork_id', $classworkId)
+                ->where('student_id', $studentId)
+                ->first();
+
+            $now = now();
+            $status = 'pending';
+
+            if ($classwork->deadline && $now->greaterThan(\Carbon\Carbon::parse($classwork->deadline))) {
+                $status = 'late_submission';
+            }
+
+            // RESUBMISSION LOGIC (Overwrite luma kung Returned by Teacher)
+            if ($existingSubmission) {
+                if ($existingSubmission->status === 'pending' && $existingSubmission->teacher_feedback !== null) {
+                    
+                    // 1. Delete old files
+                    $files = File::where('attachable_type', 'classwork_submission')
+                        ->where('attachable_id', $existingSubmission->id)
+                        ->get();
+
+                    foreach ($files as $file) {
+                        $relativePath = str_replace('/storage/', '', $file->path);
+                        Storage::disk('public')->delete($relativePath);
+                        $file->delete();
+                    }
+
+                    // 2. Update Submission Data
+                    DB::table('classwork_submissions')->where('id', $existingSubmission->id)->update([
+                        'status' => $status,
+                        'teacher_feedback' => null, // Clear feedback dahil nag-resubmit na
+                        'submitted_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+
+                    $submissionId = $existingSubmission->id;
+
+                } else {
+                    return response()->json(['message' => 'Work already submitted.'], 400);
+                }
+            } else {
+                $submissionId = (string) Str::uuid();
+                DB::table('classwork_submissions')->insert([
+                    'id' => $submissionId,
+                    'classwork_id' => $classworkId,
+                    'student_id' => $studentId,
+                    'status' => $status,
+                    'submitted_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            }
+
+            // Save Files
+            if ($request->hasFile('files')) {
+                $user = Auth::user();
+                $folderName = str_replace(' ', '_', strtolower($user->first_name . '_' . $user->last_name . '_' . $user->id));
+                $destinationPath = "users_files/{$folderName}/submissions";
+
+                foreach ($request->file('files') as $uploadedFile) {
+                    $filename = $uploadedFile->getClientOriginalName();
+                    $path = $uploadedFile->storeAs($destinationPath, time() . '_' . $filename, 'public');
+
+                    File::create([
+                        'id' => (string) Str::uuid(),
+                        'owner_id' => $user->id,
+                        'name' => $filename,
+                        'path' => '/storage/' . $path,
+                        'file_extension' => $uploadedFile->getClientOriginalExtension(),
+                        'file_size' => $uploadedFile->getSize(),
+                        'attachable_type' => 'classwork_submission', 
+                        'attachable_id' => $submissionId
+                    ]);
+                }
+            }
+
+            return response()->json(['message' => 'Work turned in successfully!'], 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to submit work: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function unsubmitWork($classworkId)
+    {
+        try {
+            $studentId = Auth::id();
+            $classwork = Classwork::findOrFail($classworkId);
+
+            if ($classwork->form_id) {
+                return response()->json(['message' => 'Cannot unsubmit a Quiz or Exam form.'], 400);
+            }
+
+            if ($classwork->deadline && now()->greaterThan(\Carbon\Carbon::parse($classwork->deadline))) {
+                return response()->json(['message' => 'Cannot unsubmit because the deadline has already passed.'], 400);
+            }
+
+            $submission = DB::table('classwork_submissions')
+                ->where('classwork_id', $classworkId)
+                ->where('student_id', $studentId)
+                ->first();
+
+            if (!$submission) {
+                return response()->json(['message' => 'No submission found.'], 404);
+            }
+
+            // i-unsubmit
+            $files = File::where('attachable_type', 'classwork_submission')
+                ->where('attachable_id', $submission->id)
+                ->get();
+
+            foreach ($files as $file) {
+                $relativePath = str_replace('/storage/', '', $file->path);
+                Storage::disk('public')->delete($relativePath);
+                $file->delete();
+            }
+
+            DB::table('classwork_submissions')->where('id', $submission->id)->delete();
+
+            return response()->json(['message' => 'Work unsubmitted successfully!'], 200);
+
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to unsubmit work: ' . $e->getMessage()], 500);
         }
     }
 
