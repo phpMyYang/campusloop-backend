@@ -8,6 +8,7 @@ use App\Models\File;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class ClassworkController extends Controller
@@ -18,7 +19,6 @@ class ClassworkController extends Controller
                 'files', 
                 'form',
                 'comments' => function ($query) {
-                    // Kunin ang main comments at i-include ang User at ang kanilang Replies
                     $query->whereNull('parent_id')
                           ->with(['user', 'replies.user'])
                           ->orderBy('created_at', 'asc');
@@ -47,7 +47,6 @@ class ClassworkController extends Controller
 
         $classwork = Classwork::create(array_merge($validated, ['classroom_id' => $classroomId]));
 
-        // EXACT FOLDER STRUCTURE FROM USER CONTROLLER
         if ($request->hasFile('files')) {
             $user = Auth::user();
             $folderName = str_replace(' ', '_', strtolower($user->first_name . '_' . $user->last_name . '_' . $user->id));
@@ -90,7 +89,6 @@ class ClassworkController extends Controller
 
         $classwork->update($validated);
 
-        // TANGGALIN ANG MGA DELETED FILES SA STORAGE AT DB
         if ($request->has('deleted_file_ids')) {
             $filesToDelete = File::whereIn('id', $request->deleted_file_ids)->get();
             foreach ($filesToDelete as $f) {
@@ -100,7 +98,6 @@ class ClassworkController extends Controller
             }
         }
 
-        // MAGDAGDAG NG MGA BAGONG UPLOADED FILES
         if ($request->hasFile('files')) {
             $user = Auth::user();
             $folderName = str_replace(' ', '_', strtolower($user->first_name . '_' . $user->last_name . '_' . $user->id));
@@ -131,5 +128,103 @@ class ClassworkController extends Controller
         $classwork = Classwork::findOrFail($id);
         $classwork->delete(); 
         return response()->json(['message' => 'Classwork moved to recycle bin.'], 200);
+    }
+
+    public function getSubmissions($classworkId)
+    {
+        try {
+            $classwork = Classwork::findOrFail($classworkId);
+            $classroomId = $classwork->classroom_id;
+
+            $students = DB::table('classroom_student')
+                ->join('users', 'classroom_student.student_id', '=', 'users.id')
+                ->where('classroom_student.classroom_id', $classroomId)
+                ->where('classroom_student.status', 'approved')
+                ->select('users.id', 'users.first_name', 'users.last_name', 'users.lrn', 'users.avatar')
+                ->orderBy('users.last_name', 'asc')
+                ->get();
+
+            foreach ($students as $student) {
+                $submission = DB::table('classwork_submissions')
+                    ->where('classwork_id', $classworkId)
+                    ->where('student_id', $student->id)
+                    ->first();
+                
+                if ($submission) {
+                    $submission->files = File::where('attachable_type', 'classwork_submission')
+                        ->where('attachable_id', $submission->id)
+                        ->get();
+                }
+
+                $student->submission = $submission;
+            }
+
+            return response()->json($students, 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to fetch submissions: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function gradeSubmission(Request $request, $classworkId, $studentId)
+    {
+        try {
+            $request->validate([
+                'grade' => 'required|numeric|min:0'
+            ]);
+
+            $submission = DB::table('classwork_submissions')
+                ->where('classwork_id', $classworkId)
+                ->where('student_id', $studentId)
+                ->first();
+
+            if (!$submission) {
+                return response()->json(['message' => 'No submission found to grade.'], 404);
+            }
+
+            DB::table('classwork_submissions')
+                ->where('id', $submission->id)
+                ->update([
+                    'grade' => $request->grade,
+                    'status' => 'graded', 
+                    'updated_at' => now()
+                ]);
+
+            return response()->json(['message' => 'Grade saved successfully!'], 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to save grade: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function returnSubmission(Request $request, $classworkId, $studentId)
+    {
+        try {
+            $request->validate([
+                'feedback' => 'required|string'
+            ]);
+
+            $submission = DB::table('classwork_submissions')
+                ->where('classwork_id', $classworkId)
+                ->where('student_id', $studentId)
+                ->first();
+
+            if (!$submission) {
+                return response()->json(['message' => 'No submission found.'], 404);
+            }
+
+            // SET TO 'pending' (instead of returned) PARA HINDI MAGKA-ENUM ERROR SA DATABASE! 
+            // PERO SINAVE ANG FEEDBACK PARA MALAMAN NG FRONTEND NA RETURNED ITO.
+            DB::table('classwork_submissions')
+                ->where('id', $submission->id)
+                ->update([
+                    'status' => 'pending', 
+                    'teacher_feedback' => $request->feedback,
+                    'grade' => null, 
+                    'updated_at' => now()
+                ]);
+
+            return response()->json(['message' => 'Submission returned to student with feedback.'], 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to return submission: ' . $e->getMessage()], 500);
+        }
     }
 }

@@ -97,6 +97,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/classworks/{id}', [ClassworkController::class, 'destroy']);
     // Comment & Reply
     Route::post('/classworks/{id}/comments', [CommentController::class, 'store']);
+    // Grading and Unsubmit Submission
+    Route::get('/classworks/{id}/submissions', [ClassworkController::class, 'getSubmissions']);
+    Route::post('/classworks/{id}/submissions/{studentId}/grade', [ClassworkController::class, 'gradeSubmission']);
+    Route::post('/classworks/{id}/submissions/{studentId}/return', [ClassworkController::class, 'returnSubmission']);
 
     // Teacher Classroom Students
     Route::get('/classrooms/{classroomId}/students', [ClassroomStudentController::class, 'index']);
@@ -135,6 +139,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/student/classrooms/join', [StudentClassroomController::class, 'joinClassroom']);
     Route::get('/student/classrooms/{id}', [StudentClassroomController::class, 'show']);
     Route::get('/student/classrooms/{id}/stream', [StudentClassroomController::class, 'stream']);
+    Route::post('/student/classworks/{id}/submit', [StudentClassroomController::class, 'submitWork']);
+    Route::post('/student/classworks/{id}/unsubmit', [StudentClassroomController::class, 'unsubmitWork']);
     Route::get('/student/classrooms/{id}/grades', [StudentClassroomController::class, 'grades']);
 
     // Kunin ang current logged-in user data
