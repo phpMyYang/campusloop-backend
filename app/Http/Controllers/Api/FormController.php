@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Form;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class FormController extends Controller
 {
@@ -73,7 +74,9 @@ class FormController extends Controller
 
     public function duplicate(Request $request, $id)
     {
-        $original = Form::where('creator_id', $request->user()->id)->findOrFail($id);
+        // Kasama na ang questions na ife-fetch para maduplicate
+        $original = Form::with('questions')->where('creator_id', $request->user()->id)->findOrFail($id);
+        
         $baseName = trim(preg_replace('/\(\d+\)$/', '', $original->name));
         $count = Form::where('creator_id', $request->user()->id)
             ->where(function ($query) use ($baseName) {
@@ -81,15 +84,22 @@ class FormController extends Controller
                       ->orWhere('name', 'LIKE', $baseName . ' (%)');
             })->count();
 
+        // I-duplicate ang Form details
         $newForm = $original->replicate();
-        $newForm->name = $baseName . ' (' . $count . ')';
+        $newForm->name = $baseName . ' (' . ($count > 0 ? $count : 1) . ')';
         $newForm->duplicate_from_id = $original->id;
         $newForm->save();
+
+        // I-duplicate lahat ng questions papunta sa bagong form (Walang respondents)
+        foreach ($original->questions as $question) {
+            $newQuestion = $question->replicate();
+            $newQuestion->form_id = $newForm->id; // I-assign sa bagong Form ID
+            $newQuestion->save();
+        }
 
         return response()->json(['message' => 'Form duplicated successfully!', 'form' => $newForm], 201);
     }
 
-    // Kukunin ang Form kasama ang Questions
     public function show(Request $request, $id)
     {
         $form = Form::with(['questions' => function ($query) {
@@ -99,16 +109,25 @@ class FormController extends Controller
         return response()->json($form, 200);
     }
 
-    // Kukunin ang mga Estudyanteng sumagot (Respondents)
     public function respondents(Request $request, $id)
     {
-        // I-verify muna na sa teacher ang form na ito
         Form::where('creator_id', $request->user()->id)->findOrFail($id);
 
         $submissions = \App\Models\FormSubmission::with(['student.strand'])
             ->where('form_id', $id)
             ->orderBy('submitted_at', 'desc')
             ->get();
+
+        // Kunin lahat ng isinagot ng student at i-attach sa submission data
+        $submissionIds = $submissions->pluck('id');
+        $answers = DB::table('form_submission_answers')
+            ->whereIn('submission_id', $submissionIds)
+            ->get()
+            ->groupBy('submission_id');
+
+        foreach ($submissions as $submission) {
+            $submission->answers = isset($answers[$submission->id]) ? $answers[$submission->id] : [];
+        }
 
         return response()->json($submissions, 200);
     }
