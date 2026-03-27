@@ -12,6 +12,11 @@ use App\Http\Controllers\Api\AnnouncementController;
 use App\Http\Controllers\Api\CalendarController;
 use App\Http\Controllers\Api\AdminELibraryController;
 use App\Http\Controllers\Api\AdminGradeController;
+use App\Http\Controllers\Api\AdminClassroomController;
+use App\Http\Controllers\Api\AdminClassworkController;
+use App\Http\Controllers\Api\AdminCommentController;
+use App\Http\Controllers\Api\AdminClassroomStudentController;
+use App\Http\Controllers\Api\AdminClassroomGradeController;
 // Teacher
 use App\Http\Controllers\Api\ClassroomController;
 use App\Http\Controllers\Api\ClassworkController;
@@ -78,11 +83,29 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/admin/e-libraries/decline', [AdminELibraryController::class, 'bulkDecline']);
     Route::post('/admin/e-libraries/delete', [AdminELibraryController::class, 'bulkDelete']);
 
-    // ADMIN: STUDENT GRADES MANAGEMENT
+    // Admin Student Grades
     Route::get('/admin/student-grades', [AdminGradeController::class, 'index']);
     Route::get('/admin/student-grades/{studentId}', [AdminGradeController::class, 'showStudentGrades']);
     Route::post('/admin/student-grades/approve', [AdminGradeController::class, 'approveGrade']);
     Route::post('/admin/student-grades/decline', [AdminGradeController::class, 'declineGrade']);
+
+    // Admin Classroom Routes
+    Route::get('admin/classrooms', [AdminClassroomController::class, 'index']);
+    Route::post('admin/classrooms/bulk-delete', [AdminClassroomController::class, 'destroyBulk']);
+    Route::get('admin/classrooms/{id}', [AdminClassroomController::class, 'show']);
+    // --- ADMIN CLASSROOM STREAM & CLASSWORKS ---
+    Route::get('admin/classrooms/{id}/classworks', [AdminClassworkController::class, 'index']); // ITO YUNG HINAHANAP NI FRONTEND
+    Route::post('admin/classworks/bulk-delete', [AdminClassworkController::class, 'destroyBulk']);
+    // --- ADMIN CLASSWORK SUBMISSIONS / RESPONDENTS ---
+    Route::get('admin/classworks/{id}/submissions', [AdminClassworkController::class, 'submissions']);
+    // --- ADMIN COMMENTS MODERATION ---
+    Route::delete('admin/comments/{id}', [AdminCommentController::class, 'destroy']);
+    // --- ADMIN CLASSROOM STUDENTS (PEOPLE TAB) ---
+    Route::get('admin/classrooms/{id}/students', [AdminClassroomStudentController::class, 'index']);
+    Route::post('admin/classrooms/{id}/students/approve', [AdminClassroomStudentController::class, 'approve']);
+    Route::post('admin/classrooms/{id}/students/remove', [AdminClassroomStudentController::class, 'remove']);
+    // --- ADMIN CLASSROOM GRADES (GRADES TAB) ---
+    Route::get('admin/classrooms/{id}/grades', [AdminClassroomGradeController::class, 'index']);
 
     // Teacher Classrooms
     Route::get('/classrooms', [ClassroomController::class, 'index']);

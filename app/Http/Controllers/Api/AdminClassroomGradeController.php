@@ -5,27 +5,22 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
 
-class ClassroomGradeController extends Controller
+class AdminClassroomGradeController extends Controller
 {
     public function index($classroomId)
     {
         try {
-            // I-check kung nag-eexist ang classroom at kung siya ang teacher
-            $classroom = DB::table('classrooms')
-                ->where('id', $classroomId)
-                ->where('creator_id', Auth::id())
-                ->first();
-
+            // I-check kung nag-eexist ang classroom
+            $classroom = DB::table('classrooms')->where('id', $classroomId)->first();
             if (!$classroom) {
-                return response()->json(['message' => 'Classroom not found or unauthorized'], 404);
+                return response()->json(['message' => 'Classroom not found'], 404);
             }
 
-            // Kunin lahat ng Classworks na may grade. EXCLUDE "MATERIAL"
+            // Kunin lahat ng Classworks (Assignments, Quizzes, etc.) na may grade. EXCLUDE "MATERIAL"
             $classworks = DB::table('classworks')
                 ->where('classroom_id', $classroomId)
-                ->where('type', '!=', 'material') 
+                ->where('type', '!=', 'material')
                 ->whereNull('deleted_at')
                 ->orderBy('created_at', 'asc') 
                 ->select('id', 'title', 'type', 'points', 'created_at', 'deadline')
@@ -53,7 +48,6 @@ class ClassroomGradeController extends Controller
                 $submissionsData = DB::table('classwork_submissions')
                     ->whereIn('classwork_id', $classworkIds)
                     ->whereIn('student_id', $studentIds)
-                    ->select('classwork_id', 'student_id', 'status', 'grade', 'teacher_feedback')
                     ->get();
                     
                 foreach ($submissionsData as $sub) {
@@ -81,8 +75,7 @@ class ClassroomGradeController extends Controller
                                 'classwork_id' => $cw->id,
                                 'student_id' => $student->id,
                                 'status' => 'missing',
-                                'grade' => null,
-                                'teacher_feedback' => null
+                                'grade' => null
                             ];
                         }
                     }
