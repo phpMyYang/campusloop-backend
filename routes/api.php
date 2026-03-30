@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\AdminClassworkController;
 use App\Http\Controllers\Api\AdminCommentController;
 use App\Http\Controllers\Api\AdminClassroomStudentController;
 use App\Http\Controllers\Api\AdminClassroomGradeController;
+use App\Http\Controllers\Api\AdminFormController;
 // Teacher
 use App\Http\Controllers\Api\ClassroomController;
 use App\Http\Controllers\Api\ClassworkController;
@@ -93,19 +94,33 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('admin/classrooms', [AdminClassroomController::class, 'index']);
     Route::post('admin/classrooms/bulk-delete', [AdminClassroomController::class, 'destroyBulk']);
     Route::get('admin/classrooms/{id}', [AdminClassroomController::class, 'show']);
-    // --- ADMIN CLASSROOM STREAM & CLASSWORKS ---
-    Route::get('admin/classrooms/{id}/classworks', [AdminClassworkController::class, 'index']); // ITO YUNG HINAHANAP NI FRONTEND
+    
+    // Admin Classwork
+    Route::get('admin/classrooms/{id}/classworks', [AdminClassworkController::class, 'index']);
     Route::post('admin/classworks/bulk-delete', [AdminClassworkController::class, 'destroyBulk']);
-    // --- ADMIN CLASSWORK SUBMISSIONS / RESPONDENTS ---
+
+    // Admin Classwork Submission
     Route::get('admin/classworks/{id}/submissions', [AdminClassworkController::class, 'submissions']);
-    // --- ADMIN COMMENTS MODERATION ---
+
+    // Admin Classwork Comment Control
     Route::delete('admin/comments/{id}', [AdminCommentController::class, 'destroy']);
-    // --- ADMIN CLASSROOM STUDENTS (PEOPLE TAB) ---
+
+    // Admin Classroom People
     Route::get('admin/classrooms/{id}/students', [AdminClassroomStudentController::class, 'index']);
     Route::post('admin/classrooms/{id}/students/approve', [AdminClassroomStudentController::class, 'approve']);
     Route::post('admin/classrooms/{id}/students/remove', [AdminClassroomStudentController::class, 'remove']);
-    // --- ADMIN CLASSROOM GRADES (GRADES TAB) ---
+
+    // Admin Classroom Grades
     Route::get('admin/classrooms/{id}/grades', [AdminClassroomGradeController::class, 'index']);
+
+    // Admin Forms
+    Route::get('admin/forms', [AdminFormController::class, 'index']);
+    Route::post('admin/forms/bulk-delete', [AdminFormController::class, 'destroyBulk']);
+    Route::get('admin/forms/{id}', [AdminFormController::class, 'show']);
+    Route::get('admin/forms/{id}/respondents', [AdminFormController::class, 'respondents']);
+    Route::delete('admin/forms/{formId}/submissions/{submissionId}/unsubmit', [AdminFormController::class, 'unsubmit']);
+    Route::get('admin/forms/{id}/print', [AdminFormController::class, 'printTeacherForm']);
+    Route::get('admin/forms/{id}/submissions/{subId}/print', [AdminFormController::class, 'printStudentForm']);
 
     // Teacher Classrooms
     Route::get('/classrooms', [ClassroomController::class, 'index']);
@@ -119,8 +134,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/classrooms/{classroomId}/classworks', [ClassworkController::class, 'store']);
     Route::put('/classworks/{id}', [ClassworkController::class, 'update']);
     Route::delete('/classworks/{id}', [ClassworkController::class, 'destroy']);
+
     // Comment & Reply
     Route::post('/classworks/{id}/comments', [CommentController::class, 'store']);
+
     // Grading and Unsubmit Submission
     Route::get('/classworks/{id}/submissions', [ClassworkController::class, 'getSubmissions']);
     Route::post('/classworks/{id}/submissions/{studentId}/grade', [ClassworkController::class, 'gradeSubmission']);
@@ -131,7 +148,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/classrooms/{classroomId}/students/approve', [ClassroomStudentController::class, 'approve']);
     Route::post('/classrooms/{classroomId}/students/remove', [ClassroomStudentController::class, 'remove']);
 
-    // Teacher Classroom Grades (Digital Class Record)
+    // Teacher Classroom Grades
     Route::get('/classrooms/{classroomId}/grades', [ClassroomGradeController::class, 'index']);
 
     // Teacher Forms
