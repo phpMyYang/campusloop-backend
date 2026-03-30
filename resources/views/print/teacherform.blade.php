@@ -68,13 +68,13 @@
         @foreach($groupedQuestions as $sectionName => $questions)
             @if($sectionName)
                 <div class="section-block">
-                    <span class="section-title">{{ toRoman($sectionIndex++) }}. {{ $sectionName }}</span>
+                    <span class="section-title">{{ toRoman($sectionIndex++) }}. {{ $sectionName }}:</span>
                     @php
                         // Hanapin ang instruction para sa section na ito
                         $secInstruction = $questions->firstWhere('instruction', '!=', null);
                     @endphp
                     @if($secInstruction && $secInstruction->instruction)
-                        <span class="section-instruction">- {{ $secInstruction->instruction }}</span>
+                        <span class="section-instruction"> {{ $secInstruction->instruction }}</span>
                     @endif
                 </div>
             @endif
