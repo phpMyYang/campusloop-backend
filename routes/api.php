@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\AdminCommentController;
 use App\Http\Controllers\Api\AdminClassroomStudentController;
 use App\Http\Controllers\Api\AdminClassroomGradeController;
 use App\Http\Controllers\Api\AdminFormController;
+use App\Http\Controllers\Api\AdminFileController;
 // Teacher
 use App\Http\Controllers\Api\ClassroomController;
 use App\Http\Controllers\Api\ClassworkController;
@@ -125,6 +126,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('admin/forms/{formId}/submissions/{submissionId}/unsubmit', [AdminFormController::class, 'unsubmit']);
     Route::get('admin/forms/{id}/print', [AdminFormController::class, 'printTeacherForm']);
     Route::get('admin/forms/{id}/submissions/{subId}/print', [AdminFormController::class, 'printStudentForm']);
+
+    // Admin Files
+    Route::get('admin/folders', [AdminFileController::class, 'folders']);
+    Route::get('admin/folders/{userId}/files', [AdminFileController::class, 'userFiles']);
+    Route::post('admin/files/download-zip', [AdminFileController::class, 'downloadZip']);
+    Route::post('admin/files/bulk-delete', [AdminFileController::class, 'bulkDelete']);
 
     // Teacher Classrooms
     Route::get('/classrooms', [ClassroomController::class, 'index']);
