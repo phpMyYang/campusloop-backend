@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\FormController;
 use App\Http\Controllers\Api\FormQuestionController;
 use App\Http\Controllers\Api\ELibraryController;
 use App\Http\Controllers\Api\AdvisoryClassController;
+use App\Http\Controllers\Api\TeacherFileController;
 // Student
 use App\Http\Controllers\Api\StudentClassroomController;
 use App\Http\Controllers\Api\StudentFormController;
@@ -177,6 +178,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/advisory-classes/{classId}/students/{studentId}/grades', [AdvisoryClassController::class, 'getStudentGrades']);
     Route::post('/advisory-classes/{classId}/students/{studentId}/grades', [AdvisoryClassController::class, 'storeStudentGrade']);
     Route::put('/advisory-classes/{classId}/students/{studentId}/grades/{gradeId}', [AdvisoryClassController::class, 'updateStudentGrade']);
+
+    // Teacher File
+    Route::get('teacher/files', [TeacherFileController::class, 'index']);
+    Route::post('teacher/files/download-zip', [TeacherFileController::class, 'downloadZip']);
 
     // Student Classrooms
     Route::get('/student/classrooms', [StudentClassroomController::class, 'index']);
