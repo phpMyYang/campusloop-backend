@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\ELibraryController;
 use App\Http\Controllers\Api\AdvisoryClassController;
 use App\Http\Controllers\Api\TeacherFileController;
 use App\Http\Controllers\Api\TeacherCalendarController;
+use App\Http\Controllers\Api\TeacherHomeController;
 // Student
 use App\Http\Controllers\Api\StudentClassroomController;
 use App\Http\Controllers\Api\StudentFormController;
@@ -194,6 +195,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Teacher Calendar
     Route::get('calendar/teacher/events', [TeacherCalendarController::class, 'events']);
+
+    // Teacher Home
+    Route::get('teacher/dashboard', [TeacherHomeController::class, 'dashboard']);
+    Route::post('teacher/announcements/{id}/comment', [TeacherHomeController::class, 'postComment']);
+    Route::put('teacher/comments/{id}', [TeacherHomeController::class, 'updateComment']); 
+    Route::delete('teacher/comments/{id}', [TeacherHomeController::class, 'deleteComment']); 
 
     // Student Classrooms
     Route::get('/student/classrooms', [StudentClassroomController::class, 'index']);
