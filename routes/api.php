@@ -39,6 +39,7 @@ use App\Http\Controllers\Api\StudentELibraryController;
 use App\Http\Controllers\Api\StudentGradeController;
 use App\Http\Controllers\Api\StudentFileController;
 use App\Http\Controllers\Api\StudentCalendarController;
+use App\Http\Controllers\Api\StudentHomeController;
 
 // Public Auth Routes (Hindi kailangan ng token)
 Route::post('/login', [AuthController::class, 'login']);
@@ -225,6 +226,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Student Calendar
     Route::get('calendar/student/events', [StudentCalendarController::class, 'events']);
+
+    // Student Home
+    Route::get('student/dashboard', [StudentHomeController::class, 'dashboard']);
+    Route::post('student/announcements/{id}/comment', [StudentHomeController::class, 'postComment']);
+    Route::put('student/comments/{id}', [StudentHomeController::class, 'updateComment']);
+    Route::delete('student/comments/{id}', [StudentHomeController::class, 'deleteComment']);
 
     // Kunin ang current logged-in user data
     Route::get('/user', function (Request $request) {
