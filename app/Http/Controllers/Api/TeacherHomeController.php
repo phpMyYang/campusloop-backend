@@ -41,20 +41,20 @@ class TeacherHomeController extends Controller
             })
             ->whereIn('status', ['pending', 'late_submission'])
             ->whereNull('grade')
+            ->whereNull('teacher_feedback') 
             ->orderBy('submitted_at', 'asc')
             ->get();
 
         // GET TOTAL CLASSROOMS
         $classroomsCount = Classroom::where('creator_id', $teacher->id)->count();
 
-        // 4GET TODAY'S SCHEDULES
+        // GET TODAY'S SCHEDULES
         $todayName = strtolower($now->format('l')); 
         $shortToday = strtolower($now->format('D')); 
         $todayDate = $now->format('Y-m-d');
 
         $todaySchedules = [];
 
-        // Kunin ang Deadlines
         $deadlinesToday = Classwork::with('classroom.subject')
             ->whereHas('classroom', function($q) use ($teacher) {
                 $q->where('creator_id', $teacher->id);
@@ -70,7 +70,6 @@ class TeacherHomeController extends Controller
             ];
         }
 
-        // Kunin ang Classes
         $classrooms = Classroom::with('subject')->where('creator_id', $teacher->id)->get();
         foreach ($classrooms as $room) {
             $scheds = $room->schedule;

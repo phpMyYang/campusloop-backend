@@ -82,6 +82,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/announcements/bulk-delete', [AnnouncementController::class, 'bulkDelete']);
     Route::put('/announcements/{id}', [AnnouncementController::class, 'update']);
     Route::delete('/announcements/{id}', [AnnouncementController::class, 'destroy']);
+    Route::post('announcements/{id}/comment', [AnnouncementController::class, 'postComment']);
+    Route::put('comments/{id}', [AnnouncementController::class, 'updateComment']);
+    Route::delete('comments/{id}', [AnnouncementController::class, 'deleteComment']);
 
     // Admin Calendar
     Route::get('/calendar/admin/events', [CalendarController::class, 'getAdminEvents']);

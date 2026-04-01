@@ -6,16 +6,27 @@ use App\Http\Controllers\Controller;
 use App\Models\Announcement;
 use App\Models\File;
 use Illuminate\Http\Request;
+use App\Models\Comment;
 use Illuminate\Support\Facades\Storage;
+
 
 class AnnouncementController extends Controller
 {
     public function index(Request $request)
     {
-        $announcements = Announcement::with('files')
-            ->where('creator_id', $request->user()->id)
-            ->orderBy('created_at', 'desc')
-            ->get();
+        $announcements = Announcement::with([
+            'files',
+            'creator',
+            'comments' => function($q) {
+                // Kukunin ang comments na walang parent (main comments)
+                $q->whereNull('parent_id')
+                  ->with(['user', 'replies.user']) // Isasama ang user at mga replies
+                  ->orderBy('created_at', 'asc');
+            }
+        ])
+        ->where('creator_id', $request->user()->id)
+        ->orderBy('created_at', 'desc')
+        ->get();
 
         return response()->json($announcements, 200);
     }
@@ -119,5 +130,39 @@ class AnnouncementController extends Controller
             ->whereIn('id', $request->ids)
             ->delete();
         return response()->json(['message' => 'Selected items moved to recycle bin.'], 200);
+    }
+
+    public function postComment(Request $request, $announcementId)
+    {
+        $request->validate([
+            'content' => 'required|string',
+            'parent_id' => 'nullable'
+        ]);
+
+        $announcement = Announcement::findOrFail($announcementId);
+        $comment = $announcement->comments()->create([
+            'user_id' => $request->user()->id,
+            'content' => $request->content,
+            'parent_id' => $request->parent_id
+        ]);
+
+        return response()->json(['message' => 'Comment posted successfully', 'comment' => $comment], 201);
+    }
+
+    public function updateComment(Request $request, $id)
+    {
+        $request->validate(['content' => 'required|string']);
+        $comment = Comment::where('user_id', $request->user()->id)->findOrFail($id);
+        $comment->update(['content' => $request->content]);
+        
+        return response()->json(['message' => 'Comment updated successfully']);
+    }
+
+    public function deleteComment(Request $request, $id)
+    {
+        $comment = Comment::findOrFail($id);
+        $comment->forceDelete(); 
+        
+        return response()->json(['message' => 'Comment deleted successfully']);
     }
 }
