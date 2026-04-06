@@ -165,7 +165,7 @@ class AdvisoryClassController extends Controller
             ]);
 
             $advisory = DB::table('advisory_classes')->where('id', $classId)->first();
-            $gradeId = Str::uuid()->toString();
+            $gradeId = \Illuminate\Support\Str::uuid()->toString();
 
             DB::table('final_grades')->insert([
                 'id' => $gradeId,
@@ -179,6 +179,27 @@ class AdvisoryClassController extends Controller
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
+
+            // KUNIN ANG DETAILS NG TEACHER, STUDENT AT SECTION
+            $currentUser = $request->user();
+            $teacherName = $currentUser->first_name . ' ' . $currentUser->last_name;
+            $student = DB::table('users')->where('id', $studentId)->first();
+            $studentName = $student ? ($student->first_name . ' ' . $student->last_name) : 'a student';
+            $section = $advisory->section;
+
+            // NOTIFY ADMINS WITH DYNAMIC DESCRIPTION
+            $admins = \App\Models\User::where('role', 'admin')->get();
+            foreach ($admins as $admin) {
+                DB::table('notifications')->insert([
+                    'id' => Str::uuid()->toString(),
+                    'user_id' => $admin->id,
+                    'description' => "Teacher: {$teacherName} submitted a grade for {$studentName} ({$section}).",
+                    'link' => "/admin/student-grades",
+                    'is_read' => false,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
 
             $newGrade = DB::table('final_grades')->where('id', $gradeId)->first();
             return response()->json(['message' => 'Grade encoded.', 'grade' => $newGrade], 201);

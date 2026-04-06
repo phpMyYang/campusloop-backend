@@ -6,6 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\ELibrary;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use App\Models\User;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB; 
 
 class ELibraryController extends Controller
 {
@@ -53,6 +56,27 @@ class ELibraryController extends Controller
                     'file_size' => $file->getSize(),
                 ]);
             }
+        }
+
+        // KUNIN ANG DETAILS NI TEACHER AT ANG TITLE
+        $currentUser = $request->user();
+        $teacherName = $currentUser->first_name . ' ' . $currentUser->last_name;
+        
+        // Paiksiin ang title kung sakaling masyadong mahaba para maganda sa UI
+        $shortTitle = Str::limit($request->title, 30);
+
+        // NOTIFY ADMINS WITH DYNAMIC DESCRIPTION
+        $admins = User::where('role', 'admin')->get();
+        foreach ($admins as $admin) {
+            DB::table('notifications')->insert([
+                'id' => Str::uuid()->toString(),
+                'user_id' => $admin->id,
+                'description' => "Teacher: {$teacherName} uploaded a new material for approval: '{$shortTitle}'",
+                'link' => "/admin/e-libraries",
+                'is_read' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
         }
 
         return response()->json(['message' => 'Uploaded to Global Library. Pending Admin Approval.'], 201);

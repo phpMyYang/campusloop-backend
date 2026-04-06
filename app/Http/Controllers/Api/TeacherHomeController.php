@@ -9,6 +9,8 @@ use App\Models\ClassworkSubmission;
 use App\Models\Comment;
 use App\Models\Classroom;
 use App\Models\Classwork;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 class TeacherHomeController extends Controller
 {
@@ -106,14 +108,58 @@ class TeacherHomeController extends Controller
 
     public function postComment(Request $request, $announcementId)
     {
-        $request->validate(['content' => 'required|string']);
-        $comment = Comment::create([
+        $request->validate([
+            'content' => 'required|string',
+            'parent_id' => 'nullable' // Idinagdag para safe ang request
+        ]);
+
+        // KUNIN ANG ANNOUNCEMENT
+        $announcement = Announcement::findOrFail($announcementId);
+        
+        // I-SAVE ANG COMMENT GAMIT ANG RELATIONSHIP (Para iwas bug sa Polymorphic mapping)
+        $comment = $announcement->comments()->create([
             'user_id' => $request->user()->id,
-            'commentable_type' => 'App\Models\Announcement',
-            'commentable_id' => $announcementId,
             'content' => $request->content,
             'parent_id' => $request->parent_id
         ]);
+
+        // KUNIN ANG DETAILS PARA SA NOTIFICATION
+        $currentUser = $request->user();
+        $fullName = $currentUser->first_name . ' ' . $currentUser->last_name;
+        $role = ucfirst($currentUser->role); 
+        
+        // Paiksiin ang text para magkasya nang maganda sa notification dropdown
+        $snippet = Str::limit($request->content, 30);
+        $announcementTitle = Str::limit($announcement->title, 25);
+
+        // CHECK KUNG ITO BA AY REPLY O DIRECT COMMENT
+        if ($request->parent_id) {
+            // Kung Reply: Hanapin kung kanino siya nag-reply
+            $parentComment = Comment::with('user')->find($request->parent_id);
+            $parentName = ($parentComment && $parentComment->user) 
+                ? $parentComment->user->first_name . ' ' . $parentComment->user->last_name
+                : 'someone';
+
+            $description = "{$role}: {$fullName} replied to {$parentName} on '{$announcementTitle}': \"{$snippet}\"";
+        } else {
+            // Kung Direct Comment:
+            $description = "{$role}: {$fullName} commented on '{$announcementTitle}': \"{$snippet}\"";
+        }
+
+        // 5. NOTIFY ADMINS
+        $admins = \App\Models\User::where('role', 'admin')->get();
+        foreach ($admins as $admin) {
+            DB::table('notifications')->insert([
+                'id' => Str::uuid()->toString(),
+                'user_id' => $admin->id,
+                'description' => $description,
+                'link' => "/admin/announcements", 
+                'is_read' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
         return response()->json(['message' => 'Comment posted successfully', 'comment' => $comment], 201);
     }
 

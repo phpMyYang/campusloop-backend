@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\AdminClassroomStudentController;
 use App\Http\Controllers\Api\AdminClassroomGradeController;
 use App\Http\Controllers\Api\AdminFormController;
 use App\Http\Controllers\Api\AdminFileController;
+use App\Http\Controllers\Api\AdminNotificationController;
 // Teacher
 use App\Http\Controllers\Api\ClassroomController;
 use App\Http\Controllers\Api\ClassworkController;
@@ -139,6 +140,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('admin/folders/{userId}/files', [AdminFileController::class, 'userFiles']);
     Route::post('admin/files/download-zip', [AdminFileController::class, 'downloadZip']);
     Route::post('admin/files/bulk-delete', [AdminFileController::class, 'bulkDelete']);
+
+    // Admin Notifications
+    Route::get('admin/notifications', [AdminNotificationController::class, 'index']);
+    Route::put('admin/notifications/{id}/read', [AdminNotificationController::class, 'markAsRead']);
+    Route::put('admin/notifications/mark-all-read', [AdminNotificationController::class, 'markAllAsRead']);
 
     // Teacher Classrooms
     Route::get('/classrooms', [ClassroomController::class, 'index']);
