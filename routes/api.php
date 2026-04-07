@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\AdvisoryClassController;
 use App\Http\Controllers\Api\TeacherFileController;
 use App\Http\Controllers\Api\TeacherCalendarController;
 use App\Http\Controllers\Api\TeacherHomeController;
+use App\Http\Controllers\Api\TeacherNotificationController;
 // Student
 use App\Http\Controllers\Api\StudentClassroomController;
 use App\Http\Controllers\Api\StudentFormController;
@@ -210,7 +211,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('teacher/dashboard', [TeacherHomeController::class, 'dashboard']);
     Route::post('teacher/announcements/{id}/comment', [TeacherHomeController::class, 'postComment']);
     Route::put('teacher/comments/{id}', [TeacherHomeController::class, 'updateComment']); 
-    Route::delete('teacher/comments/{id}', [TeacherHomeController::class, 'deleteComment']); 
+    Route::delete('teacher/comments/{id}', [TeacherHomeController::class, 'deleteComment']);
+
+    // Teacher Notifications
+    Route::get('teacher/notifications', [TeacherNotificationController::class, 'index']);
+    Route::put('teacher/notifications/{id}/read', [TeacherNotificationController::class, 'markAsRead']);
+    Route::put('teacher/notifications/mark-all-read', [TeacherNotificationController::class, 'markAllAsRead']);
 
     // Student Classrooms
     Route::get('/student/classrooms', [StudentClassroomController::class, 'index']);
@@ -247,7 +253,7 @@ Route::middleware('auth:sanctum')->group(function () {
         return $request->user();
     });
 
-    // Logout Route
+    // Logout
     Route::post('/logout', [AuthController::class, 'logout']);
     
 });

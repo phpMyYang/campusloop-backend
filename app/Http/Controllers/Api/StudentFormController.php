@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Form;
+use App\Models\Classroom;
 use App\Models\Classwork;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -12,6 +13,7 @@ use Illuminate\Support\Str;
 
 class StudentFormController extends Controller
 {
+    // View Total Score/Points
     public function show($id)
     {
         try {
@@ -50,6 +52,7 @@ class StudentFormController extends Controller
         }
     }
 
+    // Submit Form with Auto Checker
     public function submit(Request $request, $id)
     {
         try {
@@ -140,6 +143,26 @@ class StudentFormController extends Controller
                     'updated_at' => $now,
                 ]
             );
+            
+            // Kunin ang Classroom at Subject
+            $classroom = Classroom::findOrFail($classwork->classroom_id);
+            $subject = DB::table('subjects')->where('id', $classroom->subject_id)->first();
+            $subjectName = $subject ? $subject->description : 'Class';
+            
+            // I-format ang Student Name at Total Points
+            $studentName = Auth::user()->first_name . ' ' . Auth::user()->last_name;
+            $totalPoints = $form->questions->sum('points');
+            
+            // Ipadala kay Teacher ang Notification
+            DB::table('notifications')->insert([
+                'id' => Str::uuid()->toString(),
+                'user_id' => $classroom->creator_id,
+                'description' => "Student {$studentName} submitted '{$form->name}' in {$subjectName} ({$classroom->section}). Score: {$totalScore}/{$totalPoints}",
+                'link' => "/teacher/classrooms/{$classroom->id}/grades", // Mapupunta sa grades list ng klase
+                'is_read' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
 
             return response()->json([
                 'message' => 'Form submitted successfully!',
