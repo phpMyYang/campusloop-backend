@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\User;
 use App\Models\FinalGrade;
+use Illuminate\Support\Str;
 
 class AdminGradeController extends Controller
 {
@@ -15,13 +16,12 @@ class AdminGradeController extends Controller
     {
         try {
             // Kunin lang ang mga students (role='student')
-            // Mas maganda kung may with('strand') para makuha ang strand name
             $students = User::where('role', 'student')
                 ->where('status', 'active')
                 ->with('strand')
                 ->get();
 
-            // Pwede nating lagyan ng extra indicator kung may "pending" grades sila
+            // Indicator kung may "pending" grades
             foreach ($students as $student) {
                 $student->has_pending_grades = FinalGrade::where('student_id', $student->id)
                                                 ->where('status', 'pending')
@@ -30,7 +30,7 @@ class AdminGradeController extends Controller
                 $student->grades_count = FinalGrade::where('student_id', $student->id)->count();
             }
 
-            // I-filter out yung mga walang grades para malinis ang listahan (Optional)
+            // I-filter out yung mga walang grades para malinis ang listahan
             $studentsWithGrades = $students->filter(function($student) {
                 return $student->grades_count > 0;
             })->values();
@@ -66,15 +66,42 @@ class AdminGradeController extends Controller
         }
     }
 
+    // Approved Grades
     public function approveGrade(Request $request)
     {
         try {
             $request->validate(['grade_id' => 'required|uuid']);
             
-            DB::table('final_grades')->where('id', $request->grade_id)->update([
+            // Pinalitan natin ng Eloquent Model at findOrFail para mawala ang red lines
+            $grade = FinalGrade::findOrFail($request->grade_id);
+            
+            $grade->update([
                 'status' => 'approved',
-                'admin_feedback' => null, // Linisin ang feedback
-                'updated_at' => now()
+                'admin_feedback' => null, 
+            ]);
+
+            $student = User::findOrFail($grade->student_id);
+
+            // THE FOOLPROOF QUERY FOR NOTIFICATIONS
+            $advisoryClass = DB::table('advisory_classes')
+                ->join('advisory_student', 'advisory_classes.id', '=', 'advisory_student.advisory_class_id')
+                ->where('advisory_student.student_id', $grade->student_id)
+                ->where('advisory_classes.teacher_id', $grade->teacher_id)
+                ->where('advisory_classes.school_year', $grade->school_year)
+                ->whereNull('advisory_classes.deleted_at')
+                ->select('advisory_classes.id as class_id', 'advisory_classes.section')
+                ->first();
+            $sectionName = $advisoryClass ? "({$advisoryClass->section})" : "";
+            $link = $advisoryClass ? "/teacher/advisory/{$advisoryClass->class_id}" : "/teacher/advisory";
+            // Notify teacher (Approved)
+            DB::table('notifications')->insert([
+                'id' => Str::uuid()->toString(),
+                'user_id' => $grade->teacher_id,
+                'description' => "Your submitted grade for {$student->first_name} {$student->last_name} {$sectionName} was approved.",
+                'link' => $link, 
+                'is_read' => false,
+                'created_at' => now(), 
+                'updated_at' => now(),
             ]);
 
             return response()->json(['message' => 'Grade approved and locked.'], 200);
@@ -83,7 +110,7 @@ class AdminGradeController extends Controller
         }
     }
 
-    // DECLINE GRADE WITH FEEDBACK
+    // Declined Grades
     public function declineGrade(Request $request)
     {
         try {
@@ -92,12 +119,37 @@ class AdminGradeController extends Controller
                 'feedback' => 'required|string'
             ]);
             
-            DB::table('final_grades')->where('id', $request->grade_id)->update([
+            // Pinalitan natin ng Eloquent Model at findOrFail para mawala ang red lines
+            $grade = FinalGrade::findOrFail($request->grade_id);
+            
+            $grade->update([
                 'status' => 'declined',
                 'admin_feedback' => $request->feedback,
-                'updated_at' => now()
             ]);
 
+            $student = User::findOrFail($grade->student_id);
+
+            // THE FOOLPROOF QUERY FOR NOTIFICATIONS
+            $advisoryClass = DB::table('advisory_classes')
+                ->join('advisory_student', 'advisory_classes.id', '=', 'advisory_student.advisory_class_id')
+                ->where('advisory_student.student_id', $grade->student_id)
+                ->where('advisory_classes.teacher_id', $grade->teacher_id)
+                ->where('advisory_classes.school_year', $grade->school_year)
+                ->whereNull('advisory_classes.deleted_at')
+                ->select('advisory_classes.id as class_id', 'advisory_classes.section')
+                ->first();
+            $sectionName = $advisoryClass ? "({$advisoryClass->section})" : "";
+            $link = $advisoryClass ? "/teacher/advisory/{$advisoryClass->class_id}" : "/teacher/advisory";
+            // Notify teacher (Declined)
+            DB::table('notifications')->insert([
+                'id' => Str::uuid()->toString(),
+                'user_id' => $grade->teacher_id,
+                'description' => "Your submitted grade for {$student->first_name} {$student->last_name} {$sectionName} was declined. Feedback: " . Str::limit($request->feedback, 30),
+                'link' => $link, 
+                'is_read' => false,
+                'created_at' => now(), 
+                'updated_at' => now(),
+            ]);
             return response()->json(['message' => 'Grade declined and returned to teacher.'], 200);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Backend Error: ' . $e->getMessage()], 500);

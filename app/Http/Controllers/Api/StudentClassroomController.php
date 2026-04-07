@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Storage;
 
 class StudentClassroomController extends Controller
 {
+    // View Classrooms
     public function index()
     {
         try {
@@ -36,6 +37,7 @@ class StudentClassroomController extends Controller
         }
     }
 
+    // Join Classroom
     public function joinClassroom(Request $request)
     {
         try {
@@ -72,6 +74,21 @@ class StudentClassroomController extends Controller
                 'updated_at' => now(),
             ]);
 
+            // SUBJECT DESCRIPTION
+            $subject = DB::table('subjects')->where('id', $classroom->subject_id)->first();
+            $subjectName = $subject ? $subject->description : 'Class';
+
+            // NOTIFY TEACHER (Request Join)
+            DB::table('notifications')->insert([
+                'id' => Str::uuid()->toString(),
+                'user_id' => $classroom->creator_id,
+                'description' => "Student " . Auth::user()->first_name . " " . Auth::user()->last_name . " requested to join {$subjectName} ({$classroom->section}).",
+                'link' => "/teacher/classrooms/{$classroom->id}/people", // Direkta sa People tab
+                'is_read' => false,
+                'created_at' => now(), 
+                'updated_at' => now(),
+            ]);
+
             return response()->json(['message' => 'Join request sent! Please wait for your teacher to approve.'], 200);
 
         } catch (\Exception $e) {
@@ -79,6 +96,7 @@ class StudentClassroomController extends Controller
         }
     }
 
+    // Enrolled Classrooms
     public function show($id)
     {
         try {
@@ -100,6 +118,7 @@ class StudentClassroomController extends Controller
         }
     }
 
+    // View Classworks
     public function stream($id)
     {
         try {
@@ -166,6 +185,7 @@ class StudentClassroomController extends Controller
         }
     }
 
+    // Submit Work
     public function submitWork(Request $request, $classworkId)
     {
         try {
@@ -192,7 +212,7 @@ class StudentClassroomController extends Controller
             if ($existingSubmission) {
                 if ($existingSubmission->status === 'pending' && $existingSubmission->teacher_feedback !== null) {
                     
-                    // 1. Delete old files
+                    // Delete old files
                     $files = File::where('attachable_type', 'classwork_submission')
                         ->where('attachable_id', $existingSubmission->id)
                         ->get();
@@ -203,7 +223,7 @@ class StudentClassroomController extends Controller
                         $file->delete();
                     }
 
-                    // 2. Update Submission Data
+                    // Update Submission Data
                     DB::table('classwork_submissions')->where('id', $existingSubmission->id)->update([
                         'status' => $status,
                         'teacher_feedback' => null, // Clear feedback dahil nag-resubmit na
@@ -252,12 +272,32 @@ class StudentClassroomController extends Controller
                 }
             }
 
+            $classroom = Classroom::find($classwork->classroom_id);
+
+            // SUBJECT DESCRIPTION
+            $subject = DB::table('subjects')->where('id', $classroom->subject_id)->first();
+            $subjectName = $subject ? $subject->description : 'Class';
+            
+            // PANGALAN NG ESTUDYANTE
+            $studentName = Auth::user()->first_name . ' ' . Auth::user()->last_name;
+            // Notify Teacher (Submit Student Work)
+            DB::table('notifications')->insert([
+                'id' => Str::uuid()->toString(),
+                'user_id' => $classroom->creator_id,
+                'description' => "Student {$studentName} submitted their work for '{$classwork->title}' in {$subjectName} ({$classroom->section}).",
+                'link' => "/teacher/classrooms/{$classwork->classroom_id}/stream",
+                'is_read' => false,
+                'created_at' => now(), 
+                'updated_at' => now(),
+            ]);
+
             return response()->json(['message' => 'Work turned in successfully!'], 200);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Failed to submit work: ' . $e->getMessage()], 500);
         }
     }
 
+    // Unsubmit Student Work
     public function unsubmitWork($classworkId)
     {
         try {
@@ -294,6 +334,17 @@ class StudentClassroomController extends Controller
 
             DB::table('classwork_submissions')->where('id', $submission->id)->delete();
 
+            $classroom = Classroom::find($classwork->classroom_id);
+            // Notify Teacher (Unsubmit ang Student work)
+            DB::table('notifications')->insert([
+                'id' => Str::uuid()->toString(),
+                'user_id' => $classroom->creator_id,
+                'description' => Auth::user()->first_name . " unsubmitted their work for '{$classwork->title}'.",
+                'link' => "/teacher/classrooms/{$classwork->classroom_id}/stream",
+                'is_read' => false,
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
+
             return response()->json(['message' => 'Work unsubmitted successfully!'], 200);
 
         } catch (\Exception $e) {
@@ -301,6 +352,7 @@ class StudentClassroomController extends Controller
         }
     }
 
+    // View and Fetching Grades
     public function grades($id)
     {
         try {

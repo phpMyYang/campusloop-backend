@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 
 class StudentHomeController extends Controller
 {
+    // View and Fethcing Datas
     public function dashboard(Request $request)
     {
         $student = $request->user();
@@ -89,7 +90,7 @@ class StudentHomeController extends Controller
             }
         }
 
-        // 4. GET TO-DO LIST
+        // GET TO-DO LIST
         $classworks = Classwork::with(['classroom.subject', 'classwork_submissions' => function($q) use ($student) {
             $q->where('student_id', $student->id);
         }])
@@ -101,13 +102,12 @@ class StudentHomeController extends Controller
         foreach ($classworks as $cw) {
             $submission = $cw->classwork_submissions->first();
             
-            // --- INAYOS NA LOGIC PARA SA "RETURNED" STATUS ---
             if ($submission) {
                 // Scenario 1: Kung nai-update na sa database na literal na 'returned'
                 if ($submission->status === 'returned') {
                     $statusCode = 'returned'; $indicator = 'secondary'; $label = 'RETURNED';
                 } 
-                // Scenario 2: Kapag ginawang 'graded' ni Teacher
+                // Kapag ginawang 'graded' ni Teacher
                 elseif ($submission->status === 'graded') {
                     if (!is_null($submission->grade)) {
                         $statusCode = 'graded'; $indicator = 'success'; $label = 'GRADED';
@@ -116,11 +116,11 @@ class StudentHomeController extends Controller
                         $statusCode = 'returned'; $indicator = 'secondary'; $label = 'RETURNED';
                     }
                 } 
-                // Scenario 3: Kapag na-late ipasa
+                // Kapag na-late ipasa
                 elseif ($submission->status === 'late_submission') {
                     $statusCode = 'done_late'; $indicator = 'warning'; $label = 'DONE LATE';
                 } 
-                // Scenario 4: Kapag nanatiling 'pending'
+                // Kapag nanatiling 'pending'
                 else {
                     // Kung 'pending' pa rin pero may isinulat na feedback si Teacher
                     if (!is_null($submission->teacher_feedback)) {
@@ -174,6 +174,7 @@ class StudentHomeController extends Controller
         ], 200);
     }
 
+    // Post Comments
     public function postComment(Request $request, $announcementId)
     {
         $request->validate([
@@ -202,13 +203,27 @@ class StudentHomeController extends Controller
 
         // CHECK KUNG ITO BA AY REPLY O DIRECT COMMENT
         if ($request->parent_id) {
-            // Kung Reply: Hanapin kung kanino siya nag-reply
+            // Hanapin kung kanino siya nag-reply
             $parentComment = Comment::with('user')->find($request->parent_id);
             $parentName = ($parentComment && $parentComment->user) 
                 ? $parentComment->user->first_name . ' ' . $parentComment->user->last_name
                 : 'someone';
 
             $description = "{$role}: {$fullName} replied to {$parentName} on '{$announcementTitle}': \"{$snippet}\"";
+
+            // NOTIFY THE TEACHER KUNG SA KANYA NI-REPLY
+            if ($parentComment && $parentComment->user && $parentComment->user->role === 'teacher') {
+                DB::table('notifications')->insert([
+                    'id' => Str::uuid()->toString(),
+                    'user_id' => $parentComment->user->id,
+                    'description' => "Student {$fullName} replied to your comment on '{$announcementTitle}': \"{$snippet}\"",
+                    'link' => "/teacher/home", // Direkta sa teacher home/dashboard kung nasaan ang announcements
+                    'is_read' => false,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
         } else {
             // Kung Direct Comment:
             $description = "{$role}: {$fullName} commented on '{$announcementTitle}': \"{$snippet}\"";
@@ -231,6 +246,7 @@ class StudentHomeController extends Controller
         return response()->json(['message' => 'Comment posted successfully', 'comment' => $comment], 201);
     }
 
+    // Update Comments
     public function updateComment(Request $request, $id)
     {
         $request->validate(['content' => 'required|string']);
@@ -239,6 +255,7 @@ class StudentHomeController extends Controller
         return response()->json(['message' => 'Comment updated successfully']);
     }
 
+    // Delete Comments
     public function deleteComment(Request $request, $id)
     {
         $comment = Comment::where('user_id', $request->user()->id)->findOrFail($id);
