@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 
 class FormController extends Controller
 {
+    // View Form
     public function index(Request $request)
     {
         $forms = Form::with('creator')
@@ -18,6 +19,7 @@ class FormController extends Controller
         return response()->json($forms, 200);
     }
 
+    // Create Form
     public function store(Request $request)
     {
         try {
@@ -40,6 +42,7 @@ class FormController extends Controller
         }
     }
 
+    // Update Form
     public function update(Request $request, $id)
     {
         try {
@@ -65,6 +68,7 @@ class FormController extends Controller
         }
     }
 
+    // Delete Form
     public function destroy(Request $request, $id)
     {
         $form = Form::where('creator_id', $request->user()->id)->findOrFail($id);
@@ -72,6 +76,7 @@ class FormController extends Controller
         return response()->json(['message' => 'Form moved to recycle bin.'], 200);
     }
 
+    // Duplicate Form
     public function duplicate(Request $request, $id)
     {
         // Kasama na ang questions na ife-fetch para maduplicate
@@ -100,6 +105,7 @@ class FormController extends Controller
         return response()->json(['message' => 'Form duplicated successfully!', 'form' => $newForm], 201);
     }
 
+    // View Inside of Form
     public function show(Request $request, $id)
     {
         $form = Form::with(['questions' => function ($query) {
@@ -109,6 +115,7 @@ class FormController extends Controller
         return response()->json($form, 200);
     }
 
+    // Student Submission
     public function respondents(Request $request, $id)
     {
         Form::where('creator_id', $request->user()->id)->findOrFail($id);

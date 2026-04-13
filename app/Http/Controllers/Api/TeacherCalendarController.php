@@ -10,6 +10,7 @@ use App\Models\Classwork;
 
 class TeacherCalendarController extends Controller
 {
+    // View Events
     public function events(Request $request)
     {
         try {

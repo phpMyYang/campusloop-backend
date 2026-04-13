@@ -48,6 +48,7 @@ class CalendarController extends Controller
         return response()->json($events, 200);
     }
 
+    // Indicator Logic
     public function checkActiveIndicator(Request $request)
     {
         $now = now();

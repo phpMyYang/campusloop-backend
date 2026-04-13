@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Mail;
 
 class UserController extends Controller
 {
+    // View Users
     public function index(Request $request)
     {
         $query = User::with('strand'); // I-load ang strand data 
@@ -29,6 +30,7 @@ class UserController extends Controller
         return response()->json($query->orderBy('created_at', 'desc')->get(), 200);
     }
 
+    // Create Users
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -72,6 +74,7 @@ class UserController extends Controller
         return response()->json(['message' => 'User created successfully!'], 201);
     }
 
+    // Update Users
     public function update(Request $request, $id)
     {
         $user = User::findOrFail($id);
@@ -165,6 +168,7 @@ class UserController extends Controller
         return response()->json(['message' => 'User updated successfully!'], 200);
     }
 
+    // Delete User
     public function destroy(Request $request, $id)
     {
         if ($request->user()->id == $id) {
@@ -176,6 +180,7 @@ class UserController extends Controller
         return response()->json(['message' => 'User moved to recycle bin.'], 200);
     }
 
+    // Delete Users
     public function bulkDestroy(Request $request)
     {
         $request->validate(['ids' => 'required|array']);

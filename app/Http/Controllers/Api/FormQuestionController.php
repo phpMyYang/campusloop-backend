@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 
 class FormQuestionController extends Controller
 {
+    // Create Form Questions
     public function store(Request $request, $formId)
     {
         try {
@@ -33,6 +34,7 @@ class FormQuestionController extends Controller
         }
     }
 
+    // Update Form Questions
     public function update(Request $request, $id)
     {
         try {
@@ -59,6 +61,7 @@ class FormQuestionController extends Controller
         }
     }
 
+    // Delete Form Question
     public function destroy(Request $request, $id)
     {
         $question = FormQuestion::whereHas('form', function ($query) use ($request) {

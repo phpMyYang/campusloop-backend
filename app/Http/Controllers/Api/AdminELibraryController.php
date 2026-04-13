@@ -129,7 +129,39 @@ class AdminELibraryController extends Controller
     {
         try {
             $request->validate(['ids' => 'required|array']);
-            ELibrary::whereIn('id', $request->ids)->delete(); // Soft delete
+
+            // KUNIN ANG E-LIBRARIES BAGO BURAHIN PARA SA NOTIF
+            $libraries = ELibrary::whereIn('id', $request->ids)->get();
+
+            // TULUYAN NANG BURAHIN (Soft Delete)
+            ELibrary::whereIn('id', $request->ids)->delete(); 
+
+            // NOTIFICATION LOGIC 
+            $admin = $request->user();
+            $adminName = $admin ? $admin->first_name . ' ' . $admin->last_name : 'Admin';
+
+            $notifications = [];
+            $currentTime = now()->toDateTimeString();
+
+            foreach ($libraries as $lib) {
+                $notifications[] = [
+                    'id' => Str::uuid()->toString(),
+                    'user_id' => $lib->creator_id, // Kay Teacher na nag-create ise-send
+                    'description' => "Admin {$adminName} deleted your E-Library material '{$lib->title}'. It was moved to the Recycle Bin.",
+                    'link' => "/teacher/recycle-bin", // Link papunta sa recycle bin o e-library tab
+                    'is_read' => false,
+                    'created_at' => $currentTime,
+                    'updated_at' => $currentTime,
+                ];
+            }
+
+            // ISAHANG BULK INSERT PARA MABILIS
+            if (!empty($notifications)) {
+                foreach (array_chunk($notifications, 500) as $chunk) {
+                    DB::table('notifications')->insert($chunk);
+                }
+            }
+
             return response()->json(['message' => 'Selected materials moved to recycle bin.'], 200);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Error: ' . $e->getMessage()], 500);

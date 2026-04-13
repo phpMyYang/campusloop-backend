@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage; 
+use Carbon\Carbon;
 
 class StudentClassroomController extends Controller
 {
@@ -161,8 +162,8 @@ class StudentClassroomController extends Controller
                     }
                 } else {
                     if ($cw->deadline) {
-                        $deadline = \Carbon\Carbon::parse($cw->deadline);
-                        $now = \Carbon\Carbon::now();
+                        $deadline = Carbon::parse($cw->deadline);
+                        $now = Carbon::now();
 
                         if ($now->greaterThan($deadline)) {
                             $cw->student_status = 'MISSING';

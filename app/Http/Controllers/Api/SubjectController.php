@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 
 class SubjectController extends Controller
 {
+    // View Subject
     public function index()
     {
         // Isinama natin ang 'strand' para makuha ang strand name 
@@ -15,6 +16,7 @@ class SubjectController extends Controller
         return response()->json($subjects, 200);
     }
 
+    // Create Subject
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -29,6 +31,7 @@ class SubjectController extends Controller
         return response()->json(['message' => 'Subject created successfully!'], 201);
     }
 
+    // Update Subject
     public function update(Request $request, $id)
     {
         $subject = Subject::findOrFail($id);
@@ -45,6 +48,7 @@ class SubjectController extends Controller
         return response()->json(['message' => 'Subject updated successfully!'], 200);
     }
 
+    // Delete Subject
     public function destroy($id)
     {
         $subject = Subject::findOrFail($id);

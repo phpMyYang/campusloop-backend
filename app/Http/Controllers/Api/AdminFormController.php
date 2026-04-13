@@ -4,25 +4,70 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Form;
+use App\Models\FormSubmission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class AdminFormController extends Controller
 {
+    // View All Forms
     public function index()
     {
         $forms = Form::with('creator')->orderBy('created_at', 'desc')->get();
         return response()->json($forms, 200);
     }
 
+    // Bulk Delete (Soft Delete) para sa Forms
     public function destroyBulk(Request $request)
     {
-        $request->validate(['ids' => 'required|array']);
-        Form::whereIn('id', $request->ids)->delete();
-        return response()->json(['message' => 'Forms moved to recycle bin.'], 200);
+        try {
+            $request->validate(['ids' => 'required|array']);
+
+            // KUNIN ANG FORMS BAGO BURAHIN PARA SA NOTIF
+            $forms = Form::whereIn('id', $request->ids)->get();
+
+            // TULUYAN NANG BURAHIN (Soft Delete)
+            Form::whereIn('id', $request->ids)->delete();
+
+            // NOTIFICATION LOGIC 
+            $admin = $request->user();
+            $adminName = $admin ? $admin->first_name . ' ' . $admin->last_name : 'Admin';
+
+            $notifications = [];
+            $currentTime = now()->toDateTimeString();
+
+            foreach ($forms as $form) {
+                // I-check kung may creator_id bago gumawa ng notification
+                if ($form->creator_id) {
+                    $formName = $form->name ?? 'Quiz/Exam';
+                    
+                    $notifications[] = [
+                        'id' => Str::uuid()->toString(),
+                        'user_id' => $form->creator_id, // Ise-send sa mismong Teacher na gumawa
+                        'description' => "Admin {$adminName} deleted your form '{$formName}'. It was moved to the Recycle Bin.",
+                        'link' => "/teacher/recycle-bin", // Direkta sa recycle bin ni Teacher
+                        'is_read' => false,
+                        'created_at' => $currentTime,
+                        'updated_at' => $currentTime,
+                    ];
+                }
+            }
+
+            // ISAHANG BULK INSERT PARA MABILIS
+            if (!empty($notifications)) {
+                foreach (array_chunk($notifications, 500) as $chunk) {
+                    DB::table('notifications')->insert($chunk);
+                }
+            }
+
+            return response()->json(['message' => 'Forms moved to recycle bin.'], 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Error: ' . $e->getMessage()], 500);
+        }
     }
 
+    // Inside of Form
     public function show($id)
     {
         $form = Form::with(['questions' => function ($query) {
@@ -32,9 +77,10 @@ class AdminFormController extends Controller
         return response()->json($form, 200);
     }
 
+    // Student Answers
     public function respondents($id)
     {
-        $submissions = \App\Models\FormSubmission::with(['student.strand'])
+        $submissions = FormSubmission::with(['student.strand'])
             ->where('form_id', $id)
             ->orderBy('submitted_at', 'desc')
             ->get();
@@ -140,7 +186,7 @@ class AdminFormController extends Controller
         }
     }
 
-    // PRINT RENDERERS 
+    // Print Teacher Form
     public function printTeacherForm(Request $request, $id)
     {
         $form = Form::with(['creator', 'questions'])->findOrFail($id);
@@ -150,6 +196,7 @@ class AdminFormController extends Controller
         return response($html)->header('Content-Type', 'text/html');
     }
 
+    // Print Student Answer
     public function printStudentForm(Request $request, $formId, $submissionId)
     {
         $form = Form::with(['questions'])->findOrFail($formId);

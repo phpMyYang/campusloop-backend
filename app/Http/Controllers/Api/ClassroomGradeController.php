@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Auth;
 
 class ClassroomGradeController extends Controller
 {
+    // View Classroom Grade
     public function index($classroomId)
     {
         try {

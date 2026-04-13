@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 
 class ELibraryController extends Controller
 {
+    // View ELibrary
     public function index(Request $request)
     {
         try {
@@ -29,6 +30,7 @@ class ELibraryController extends Controller
         }
     }
 
+    // Create Elibrary
     public function store(Request $request)
     {
         $request->validate([
@@ -71,7 +73,7 @@ class ELibraryController extends Controller
             DB::table('notifications')->insert([
                 'id' => Str::uuid()->toString(),
                 'user_id' => $admin->id,
-                'description' => "Teacher: {$teacherName} uploaded a new material for approval: '{$shortTitle}'",
+                'description' => "Teacher {$teacherName} uploaded a new material for approval: '{$shortTitle}'",
                 'link' => "/admin/e-libraries",
                 'is_read' => false,
                 'created_at' => now(),
@@ -82,6 +84,7 @@ class ELibraryController extends Controller
         return response()->json(['message' => 'Uploaded to Global Library. Pending Admin Approval.'], 201);
     }
 
+    // Update Elibrary
     public function update(Request $request, $id)
     {
         $library = ELibrary::where('creator_id', $request->user()->id)->findOrFail($id);
@@ -124,6 +127,7 @@ class ELibraryController extends Controller
         return response()->json(['message' => 'Changes saved and re-submitted for approval.'], 200);
     }
 
+    // Delete Elibrary
     public function destroy(Request $request, $id)
     {
         $library = ELibrary::where('creator_id', $request->user()->id)->findOrFail($id);

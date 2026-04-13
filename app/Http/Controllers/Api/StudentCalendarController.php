@@ -10,13 +10,14 @@ use App\Models\Classwork;
 
 class StudentCalendarController extends Controller
 {
+    // View events
     public function events(Request $request)
     {
         try {
             $studentId = $request->user()->id;
             $events = [];
 
-            // 1. GET SYSTEM ANNOUNCEMENTS (Published or Done)
+            // GET SYSTEM ANNOUNCEMENTS (Published or Done)
             $announcements = Announcement::with('files')
                 ->where('publish_from', '<=', now())
                 ->get()
@@ -37,7 +38,7 @@ class StudentCalendarController extends Controller
                     ];
                 })->toArray();
 
-            // 2. GET CLASSWORK DEADLINES (Mula sa mga SINALIAN na Classrooms na Approved)
+            // GET CLASSWORK DEADLINES (Mula sa mga SINALIAN na Classrooms na Approved)
             $classworks = Classwork::with('classroom.subject')
                 ->whereHas('classroom.students', function ($q) use ($studentId) {
                     $q->where('student_id', $studentId)
@@ -60,7 +61,7 @@ class StudentCalendarController extends Controller
                     ];
                 })->toArray();
 
-            // 3. INDESTRUCTIBLE CLASSROOM SCHEDULES PARSER (Mula sa SINALIAN na Classrooms)
+            // INDESTRUCTIBLE CLASSROOM SCHEDULES PARSER (Mula sa SINALIAN na Classrooms)
             $dayMap = [
                 'sunday' => 0, 'sun' => 0,
                 'monday' => 1, 'mon' => 1,
