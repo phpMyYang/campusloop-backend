@@ -9,6 +9,7 @@ use App\Models\SystemSetting;
 
 class StudentGradeController extends Controller
 {
+    // View Student Final Grade
     public function index(Request $request)
     {
         try {

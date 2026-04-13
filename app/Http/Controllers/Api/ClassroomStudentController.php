@@ -5,9 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Classroom;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 class ClassroomStudentController extends Controller
 {
+    // View Student Classroom
     public function index($classroomId)
     {
         $classroom = Classroom::findOrFail($classroomId);
@@ -39,7 +42,7 @@ class ClassroomStudentController extends Controller
 
         foreach ($request->student_ids as $studentId) {
             $notifications[] = [
-                'id' => \Illuminate\Support\Str::uuid()->toString(),
+                'id' => Str::uuid()->toString(),
                 'user_id' => $studentId,
                 'description' => "Teacher {$teacherName} approved your request to join {$subjectName} ({$sectionName}).",
                 'link' => "/student/classrooms/{$classroomId}", // Diretso sa loob ng class
@@ -51,7 +54,7 @@ class ClassroomStudentController extends Controller
 
         if (!empty($notifications)) {
             foreach (array_chunk($notifications, 500) as $chunk) {
-                \Illuminate\Support\Facades\DB::table('notifications')->insert($chunk);
+                DB::table('notifications')->insert($chunk);
             }
         }
 
@@ -102,7 +105,7 @@ class ClassroomStudentController extends Controller
 
         if (!empty($notifications)) {
             foreach (array_chunk($notifications, 500) as $chunk) {
-                \Illuminate\Support\Facades\DB::table('notifications')->insert($chunk);
+                DB::table('notifications')->insert($chunk);
             }
         }
 

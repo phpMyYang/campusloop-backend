@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Classroom;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 class AdminClassroomController extends Controller
 {
@@ -29,7 +31,43 @@ class AdminClassroomController extends Controller
             'ids.*' => 'exists:classrooms,id'
         ]);
 
+        // KUNIN ANG CLASSROOMS BAGO BURAHIN PARA SA NOTIF
+        $classrooms = Classroom::with('subject')->whereIn('id', $request->ids)->get();
+
+        // TULUYAN NANG BURAHIN (Soft Delete)
         Classroom::whereIn('id', $request->ids)->delete();
+
+        // NOTIFICATION LOGIC (DELETED CLASSROOM)
+        $admin = $request->user();
+        $adminName = $admin ? $admin->first_name . ' ' . $admin->last_name : 'Admin';
+
+        $notifications = [];
+        $currentTime = now()->toDateTimeString();
+
+        foreach ($classrooms as $classroom) {
+            $teacherId = $classroom->creator_id;
+            $subjectName = $classroom->subject ? $classroom->subject->description : 'the class';
+            $sectionName = $classroom->section;
+
+            if ($teacherId) {
+                $notifications[] = [
+                    'id' => Str::uuid()->toString(),
+                    'user_id' => $teacherId,
+                    'description' => "Admin {$adminName} deleted your classroom {$subjectName} ({$sectionName}). It was moved to the Recycle Bin.",
+                    'link' => "/teacher/recycle-bin", // Link papunta sa recycle bin para makita nila
+                    'is_read' => false,
+                    'created_at' => $currentTime,
+                    'updated_at' => $currentTime,
+                ];
+            }
+        }
+
+        // ISAHANG BULK INSERT PARA MABILIS
+        if (!empty($notifications)) {
+            foreach (array_chunk($notifications, 500) as $chunk) {
+                DB::table('notifications')->insert($chunk);
+            }
+        }
 
         return response()->json(['message' => 'Selected classrooms moved to recycle bin.'], 200);
     }

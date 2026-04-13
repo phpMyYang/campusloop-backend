@@ -17,6 +17,7 @@ use App\Mail\NewClassworkPosted;
 
 class ClassworkController extends Controller
 {
+    // View Classwork
     public function index($classroomId)
     {
         $classworks = Classwork::with([
@@ -36,6 +37,7 @@ class ClassworkController extends Controller
         return response()->json($classworks, 200);
     }
 
+    // Create Classwork
     public function store(Request $request, $classroomId)
     {
         $validated = $request->validate([
@@ -129,6 +131,7 @@ class ClassworkController extends Controller
         return response()->json(['message' => 'Classwork posted successfully!', 'classwork' => $classwork->load(['files', 'form'])], 201);
     }
 
+    // Update Classwork
     public function update(Request $request, $id)
     {
         $classwork = Classwork::findOrFail($id);
@@ -180,6 +183,7 @@ class ClassworkController extends Controller
         return response()->json(['message' => 'Classwork updated successfully!'], 200);
     }
 
+    // Delete Classwork
     public function destroy($id)
     {
         $classwork = Classwork::findOrFail($id);
@@ -187,6 +191,7 @@ class ClassworkController extends Controller
         return response()->json(['message' => 'Classwork moved to recycle bin.'], 200);
     }
 
+    // View Student Submission
     public function getSubmissions($classworkId)
     {
         try {
@@ -222,6 +227,7 @@ class ClassworkController extends Controller
         }
     }
 
+    // Put Grade to Student Submission
     public function gradeSubmission(Request $request, $classworkId, $studentId)
     {
         try {
@@ -282,6 +288,7 @@ class ClassworkController extends Controller
         }
     }
 
+    // Unsubmit Student Submission
     public function returnSubmission(Request $request, $classworkId, $studentId)
     {
         try {

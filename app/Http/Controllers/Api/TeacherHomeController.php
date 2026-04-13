@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 
 class TeacherHomeController extends Controller
 {
+    // Home Page
     public function dashboard(Request $request)
     {
         $teacher = $request->user();
@@ -106,6 +107,7 @@ class TeacherHomeController extends Controller
         ], 200);
     }
 
+    // Create Comment
     public function postComment(Request $request, $announcementId)
     {
         $request->validate([
@@ -146,7 +148,7 @@ class TeacherHomeController extends Controller
             $description = "{$role}: {$fullName} commented on '{$announcementTitle}': \"{$snippet}\"";
         }
 
-        // 5. NOTIFY ADMINS
+        // NOTIFY ADMINS
         $admins = \App\Models\User::where('role', 'admin')->get();
         foreach ($admins as $admin) {
             DB::table('notifications')->insert([
@@ -163,6 +165,7 @@ class TeacherHomeController extends Controller
         return response()->json(['message' => 'Comment posted successfully', 'comment' => $comment], 201);
     }
 
+    // Update Comment
     public function updateComment(Request $request, $id)
     {
         $request->validate(['content' => 'required|string']);
@@ -171,6 +174,7 @@ class TeacherHomeController extends Controller
         return response()->json(['message' => 'Comment updated successfully']);
     }
 
+    // Delete Comment
     public function deleteComment(Request $request, $id)
     {
         $comment = Comment::where('user_id', $request->user()->id)->findOrFail($id);

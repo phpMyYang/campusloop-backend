@@ -9,6 +9,7 @@ use Illuminate\Support\Str;
 
 class AdminNotificationController extends Controller
 {
+    // View All Notifications
     public function index(Request $request)
     {
         $notifications = DB::table('notifications')
@@ -19,6 +20,7 @@ class AdminNotificationController extends Controller
         return response()->json($notifications, 200);
     }
 
+    // Selected Notification Read
     public function markAsRead(Request $request, $id)
     {
         DB::table('notifications')
@@ -29,6 +31,7 @@ class AdminNotificationController extends Controller
         return response()->json(['message' => 'Marked as read'], 200);
     }
 
+    // All Notification Read
     public function markAllAsRead(Request $request)
     {
         DB::table('notifications')

@@ -8,12 +8,14 @@ use Illuminate\Http\Request;
 
 class SystemSettingController extends Controller
 {
+    // View School Setting
     public function index()
     {
         $activeSetting = SystemSetting::where('is_active', true)->first();
         return response()->json($activeSetting, 200);
     }
 
+    // Set School Setting
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -38,6 +40,7 @@ class SystemSettingController extends Controller
         ], 200);
     }
 
+    // Reset School Setting
     public function reset()
     {
         $activeSetting = SystemSetting::where('is_active', true)->first();
