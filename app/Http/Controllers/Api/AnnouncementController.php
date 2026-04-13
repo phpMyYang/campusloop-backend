@@ -9,9 +9,9 @@ use App\Models\File;
 use Illuminate\Http\Request;
 use App\Models\Comment;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Storage;
 
 class AnnouncementController extends Controller
 {
@@ -68,6 +68,52 @@ class AnnouncementController extends Controller
                 ]);
             }
         }
+
+        $publishFromDate = Carbon::parse($validated['publish_from']);
+        $now = now();
+
+        $adminName = $request->user()->first_name . ' ' . $request->user()->last_name;
+        $announcementTitle = Str::limit($announcement->title, 25);
+
+        // CONDITIONAL DESCRIPTION: Dito magbabago ang text
+        if ($publishFromDate->greaterThan($now)) {
+            // KUNG FUTURE DATE (Scheduled)
+            $formattedDate = $publishFromDate->format('M d, Y h:i A'); // Halimbawa: Apr 08, 2026 08:00 AM
+            $descriptionText = "Admin {$adminName} scheduled an announcement: '{$announcementTitle}'. Wait for it on {$formattedDate}.";
+        } else {
+            // KUNG PUBLISHED NA NGAYON
+            $descriptionText = "Admin {$adminName} posted a new global announcement: '{$announcementTitle}'.";
+        }
+
+        // Kunin lahat ng ACTIVE students at teachers
+        $targetUsers = User::whereIn('role', ['student', 'teacher'])
+                            ->where('status', 'active')
+                            ->get();
+
+        $notifications = [];
+        $currentTime = $now->toDateTimeString();
+
+        foreach ($targetUsers as $user) {
+            $link = $user->role === 'student' ? "/student/home" : "/teacher/home";
+            
+            $notifications[] = [
+                'id' => Str::uuid()->toString(),
+                'user_id' => $user->id,
+                'description' => $descriptionText, // Gagamitin natin yung variable text mula sa itaas
+                'link' => $link,
+                'is_read' => false,
+                'created_at' => $currentTime,
+                'updated_at' => $currentTime,
+            ];
+        }
+
+        // I-insert nang isahan para mabilis
+        if (!empty($notifications)) {
+            foreach (array_chunk($notifications, 500) as $chunk) {
+                DB::table('notifications')->insert($chunk);
+            }
+        }
+        
         return response()->json(['message' => 'Announcement posted successfully!'], 201);
     }
 

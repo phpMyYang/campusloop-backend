@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Classroom;
 use App\Models\Classwork;
 use App\Models\File;
 use Illuminate\Http\Request;
@@ -10,6 +11,9 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use App\Models\User;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\NewClassworkPosted;
 
 class ClassworkController extends Controller
 {
@@ -66,6 +70,59 @@ class ClassworkController extends Controller
                     'attachable_type' => Classwork::class,
                     'attachable_id' => $classwork->id
                 ]);
+            }
+        }
+
+        // NOTIFICATION & EMAIL LOGIC
+        $teacher = $request->user();
+        $teacherName = $teacher->first_name . ' ' . $teacher->last_name;
+        $classworkType = ucfirst($classwork->type);
+        
+        // Kunin ang classroom at subject
+        $classroom = Classroom::with('subject')->findOrFail($classroomId);
+        $subjectName = $classroom->subject ? $classroom->subject->description : 'the class';
+        
+        // Kunin ang lahat ng APPROVED students sa classroom
+        $approvedStudents = $classroom->students()->wherePivot('status', 'approved')->get();
+
+        $notifications = [];
+        $currentTime = now()->toDateTimeString();
+        
+        // Setup ng link na gagamitin sa notification at sa email
+        $frontendBaseUrl = env('FRONTEND_URL', 'http://localhost:5173'); // Siguraduhin nasa .env mo ito!
+        $linkPath = "/student/classrooms/{$classroomId}/stream";
+        $fullLink = $frontendBaseUrl . $linkPath;
+
+        foreach ($approvedStudents as $student) {
+            // 1. Ihanda ang IN-APP Bell Notification
+            $notifications[] = [
+                'id' => Str::uuid()->toString(),
+                'user_id' => $student->id,
+                'description' => "Teacher {$teacherName} posted a new {$classworkType}: '{$classwork->title}' in {$subjectName}.",
+                'link' => $linkPath,
+                'is_read' => false,
+                'created_at' => $currentTime,
+                'updated_at' => $currentTime,
+            ];
+
+            // I-queue ang pag-send ng EMAIL sa background
+            if (!empty($student->email)) {
+                Mail::to($student->email)->send(new NewClassworkPosted(
+                    $student->first_name,
+                    $teacherName,
+                    $subjectName,
+                    $classwork->type,
+                    $classwork->title,
+                    $classwork->deadline,
+                    $fullLink
+                ));
+            }
+        }
+
+        // Bulk Insert sa Database Notifications
+        if (!empty($notifications)) {
+            foreach (array_chunk($notifications, 500) as $chunk) {
+                DB::table('notifications')->insert($chunk);
             }
         }
 
@@ -189,6 +246,36 @@ class ClassworkController extends Controller
                     'updated_at' => now()
                 ]);
 
+            // NOTIFICATION LOGIC FOR STUDENT
+            // Kunin ang details ng classwork para malaman kung anong type (e.g., assignment, quiz) at perfect score
+            $classwork = DB::table('classworks')->where('id', $classworkId)->first();
+
+            if ($classwork) {
+                // Kunin ang classroom at subject details para sa smart description
+                $classroom = DB::table('classrooms')->where('id', $classwork->classroom_id)->first();
+                $subject = $classroom ? DB::table('subjects')->where('id', $classroom->subject_id)->first() : null;
+
+                $teacherName = $request->user()->first_name . ' ' . $request->user()->last_name;
+                $subjectName = $subject ? $subject->description : 'the class';
+                $classworkType = ucfirst($classwork->type); // Gagawing Capital ang unang letter (e.g., "Assignment")
+                $classworkTitle = $classwork->title ?? $classwork->name ?? 'Activity';
+                $sectionName = $classroom ? "({$classroom->section})" : "";
+                
+                // Format score (Example: "85/100" kung may perfect points, or "85" lang kung wala)
+                $scoreString = $classwork->points ? "{$request->grade}/{$classwork->points}" : "{$request->grade}";
+
+                // I-insert ang notification
+                DB::table('notifications')->insert([
+                    'id' => Str::uuid()->toString(),
+                    'user_id' => $studentId,
+                    'description' => "Teacher {$teacherName} graded your {$classworkType}: '{$classworkTitle}' in {$subjectName} {$sectionName}. Score: {$scoreString}",
+                    'link' => "/student/classrooms/" . ($classroom ? $classroom->id : ''), // Ididirekta natin sa loob ng classroom nila
+                    'is_read' => false,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
             return response()->json(['message' => 'Grade saved successfully!'], 200);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Failed to save grade: ' . $e->getMessage()], 500);
@@ -221,6 +308,34 @@ class ClassworkController extends Controller
                     'grade' => null, 
                     'updated_at' => now()
                 ]);
+
+            // NOTIFICATION LOGIC FOR STUDENT (RETURNED)
+            $classwork = DB::table('classworks')->where('id', $classworkId)->first();
+
+            if ($classwork) {
+                $classroom = DB::table('classrooms')->where('id', $classwork->classroom_id)->first();
+                $subject = $classroom ? DB::table('subjects')->where('id', $classroom->subject_id)->first() : null;
+
+                $teacherName = $request->user()->first_name . ' ' . $request->user()->last_name;
+                $subjectName = $subject ? $subject->description : 'the class';
+                $classworkType = ucfirst($classwork->type); 
+                $classworkTitle = $classwork->title ?? $classwork->name ?? 'Activity';
+                $sectionName = $classroom ? "({$classroom->section})" : "";
+                
+                // Limitahan natin ang feedback sa 30 characters para maganda sa bell notification
+                $feedbackSnippet = Str::limit($request->feedback, 30);
+
+                // I-insert ang notification
+                DB::table('notifications')->insert([
+                    'id' => Str::uuid()->toString(),
+                    'user_id' => $studentId,
+                    'description' => "Teacher {$teacherName} returned your {$classworkType}: '{$classworkTitle}' in {$subjectName} {$sectionName}. Feedback: \"{$feedbackSnippet}\"",
+                    'link' => "/student/classrooms/" . ($classroom ? $classroom->id : ''), // Direkta sa classroom
+                    'is_read' => false,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
 
             return response()->json(['message' => 'Submission returned to student with feedback.'], 200);
         } catch (\Exception $e) {
