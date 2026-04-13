@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use \App\Models\ELibrary;
+use App\Models\User;
 
 class AdminELibraryController extends Controller
 {
@@ -33,18 +34,57 @@ class AdminELibraryController extends Controller
                 'updated_at' => now()
             ]);
 
-            // NOTIFY TEACHERS (Approve)
-            $libraries = ELibrary::whereIn('id', $request->ids)->get();
+            // NOTIFICATION LOGIC
+            $adminUser = $request->user();
+            $adminName = $adminUser->first_name . ' ' . $adminUser->last_name;
+
+            // Kunin ang E-Libraries KASAMA ang relationship ng creator (para makuha ang pangalan ng teacher)
+            $libraries = ELibrary::with('creator')->whereIn('id', $request->ids)->get();
+            
+            // Kunin lahat ng ACTIVE students
+            $students = User::where('role', 'student')
+                                        ->where('status', 'active')
+                                        ->get();
+
+            $notifications = [];
+            $currentTime = now()->toDateTimeString();
+
             foreach($libraries as $lib) {
-                DB::table('notifications')->insert([
+                // Pangalan ng gumawa ng module (Teacher)
+                $creatorName = $lib->creator ? $lib->creator->first_name . ' ' . $lib->creator->last_name : 'a Teacher';
+                
+                // NOTIFICATION PARA KAY TEACHER (Creator)
+                $notifications[] = [
                     'id' => Str::uuid()->toString(),
                     'user_id' => $lib->creator_id,
-                    'description' => "Your E-Library material '{$lib->title}' was approved by the Admin.",
+                    'description' => "Your E-Library material '{$lib->title}' was approved by Admin {$adminName}.",
                     'link' => "/teacher/e-library",
                     'is_read' => false,
-                    'created_at' => now(), 'updated_at' => now(),
-                ]);
+                    'created_at' => $currentTime,
+                    'updated_at' => $currentTime,
+                ];
+
+                // NOTIFICATION PARA SA LAHAT NG STUDENTS
+                foreach($students as $student) {
+                    $notifications[] = [
+                        'id' => Str::uuid()->toString(),
+                        'user_id' => $student->id,
+                        'description' => "Admin {$adminName} added a new E-Library material: '{$lib->title}' by {$creatorName}.",
+                        'link' => "/student/e-library", // Link papunta sa student e-library
+                        'is_read' => false,
+                        'created_at' => $currentTime,
+                        'updated_at' => $currentTime,
+                    ];
+                }
             }
+
+            // BULK INSERT: Hahatiin by 500s para mabilis
+            if (!empty($notifications)) {
+                foreach (array_chunk($notifications, 500) as $chunk) {
+                    DB::table('notifications')->insert($chunk);
+                }
+            }
+
             return response()->json(['message' => 'Selected materials approved successfully.'], 200);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Error: ' . $e->getMessage()], 500);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Models\Comment;
 use App\Models\Classwork;
 use App\Models\Classroom;
@@ -42,12 +43,13 @@ class CommentController extends Controller
 
             // FORMAT DETAILS PARA SA DROPDOWN
             $fullName = $currentUser->first_name . ' ' . $currentUser->last_name;
-            $role = ucfirst($currentUser->role); // Para maging "Student" o "Teacher"
+            $role = ucfirst($currentUser->role); // "Student" o "Teacher"
             
             $snippet = Str::limit($request->content, 30);
             $classworkTitle = Str::limit($classwork->title, 25);
 
             // CHECK KUNG REPLY O DIRECT COMMENT
+            $parentComment = null;
             if ($request->parent_id) {
                 $parentComment = Comment::with('user')->find($request->parent_id);
                 $parentName = ($parentComment && $parentComment->user) 
@@ -59,18 +61,89 @@ class CommentController extends Controller
                 $description = "{$role} {$fullName} commented on '{$classworkTitle}' in {$subjectName} ({$sectionName}): \"{$snippet}\"";
             }
 
-            // NOTIFY TEACHER (Kung hindi si Teacher mismo ang nag-comment)
+            // NOTIFICATION LOGIC 
+            $currentTime = now()->toDateTimeString();
+            $notifications = [];
+
+            // 1. NOTIFY TEACHER (Kung hindi si Teacher mismo ang nag-comment)
             if ($currentUser->id !== $classroom->creator_id) {
-                DB::table('notifications')->insert([
+                $notifications[] = [
                     'id' => Str::uuid()->toString(),
                     'user_id' => $classroom->creator_id,
                     'description' => $description,
-                    'link' => "/teacher/classrooms/{$classroom->id}/stream", // Direkta sa stream ng klase
+                    'link' => "/teacher/classrooms/{$classroom->id}/stream", // Direkta sa stream ni teacher
                     'is_read' => false,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
+                    'created_at' => $currentTime,
+                    'updated_at' => $currentTime,
+                ];
             }
+
+            // NOTIFY STUDENTS
+            if ($request->parent_id) {
+                // KUNG REPLY: I-notify lang kung sino yung nireplyan (kung student siya)
+                if ($parentComment && $parentComment->user_id !== $currentUser->id) {
+                    $targetUser = $parentComment->user;
+                    if ($targetUser && $targetUser->role === 'student') {
+                        $notifications[] = [
+                            'id' => Str::uuid()->toString(),
+                            'user_id' => $targetUser->id,
+                            'description' => $description,
+                            'link' => "/student/classrooms/{$classroom->id}/stream",
+                            'is_read' => false,
+                            'created_at' => $currentTime,
+                            'updated_at' => $currentTime,
+                        ];
+                    }
+                }
+            } else {
+                // KUNG DIRECT COMMENT:
+                if ($currentUser->id === $classroom->creator_id) {
+                    // Pag si TEACHER ang nag-comment, i-notify LAHAT ng approved students sa class
+                    $approvedStudents = $classroom->students()->wherePivot('status', 'approved')->get();
+                    foreach ($approvedStudents as $student) {
+                        $notifications[] = [
+                            'id' => Str::uuid()->toString(),
+                            'user_id' => $student->id,
+                            'description' => $description,
+                            'link' => "/student/classrooms/{$classroom->id}/stream",
+                            'is_read' => false,
+                            'created_at' => $currentTime,
+                            'updated_at' => $currentTime,
+                        ];
+                    }
+                } else {
+                    // Pag si STUDENT ang nag-comment, i-notify lang 'yung ibang students na nag-interact sa comments (Participants)
+                    $participantIds = Comment::where('commentable_id', $classworkId)
+                        ->where('commentable_type', Classwork::class)
+                        ->where('user_id', '!=', $currentUser->id)
+                        ->where('user_id', '!=', $classroom->creator_id) // Exclude teacher
+                        ->pluck('user_id')
+                        ->unique();
+
+                    if ($participantIds->isNotEmpty()) {
+                        $participants = User::whereIn('id', $participantIds)->where('role', 'student')->get();
+                        foreach ($participants as $pUser) {
+                            $notifications[] = [
+                                'id' => Str::uuid()->toString(),
+                                'user_id' => $pUser->id,
+                                'description' => $description,
+                                'link' => "/student/classrooms/{$classroom->id}/stream",
+                                'is_read' => false,
+                                'created_at' => $currentTime,
+                                'updated_at' => $currentTime,
+                            ];
+                        }
+                    }
+                }
+            }
+
+            // ISAHANG BULK INSERT PARA MABILIS
+            if (!empty($notifications)) {
+                foreach (array_chunk($notifications, 500) as $chunk) {
+                    DB::table('notifications')->insert($chunk);
+                }
+            }
+
             return response()->json(['message' => 'Comment posted successfully!', 'comment' => $comment], 201);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Failed to post comment: ' . $e->getMessage()], 500);

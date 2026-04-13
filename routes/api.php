@@ -42,6 +42,7 @@ use App\Http\Controllers\Api\StudentGradeController;
 use App\Http\Controllers\Api\StudentFileController;
 use App\Http\Controllers\Api\StudentCalendarController;
 use App\Http\Controllers\Api\StudentHomeController;
+use App\Http\Controllers\Api\StudentNotificationController;
 
 // Public Auth Routes (Hindi kailangan ng token)
 Route::post('/login', [AuthController::class, 'login']);
@@ -247,6 +248,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('student/announcements/{id}/comment', [StudentHomeController::class, 'postComment']);
     Route::put('student/comments/{id}', [StudentHomeController::class, 'updateComment']);
     Route::delete('student/comments/{id}', [StudentHomeController::class, 'deleteComment']);
+
+    // Student Notification
+    Route::get('student/notifications', [StudentNotificationController::class, 'index']);
+    Route::put('student/notifications/mark-all-read', [StudentNotificationController::class, 'markAllAsRead']);
+    Route::put('student/notifications/{id}/read', [StudentNotificationController::class, 'markAsRead']);
 
     // Kunin ang current logged-in user data
     Route::get('/user', function (Request $request) {

@@ -82,6 +82,10 @@ class AdminGradeController extends Controller
 
             $student = User::findOrFail($grade->student_id);
 
+            // KUNIN ANG SUBJECT DESCRIPTION
+            $subject = DB::table('subjects')->where('id', $grade->subject_id)->first();
+            $subjectName = $subject ? $subject->description : 'Subject';
+
             // THE FOOLPROOF QUERY FOR NOTIFICATIONS
             $advisoryClass = DB::table('advisory_classes')
                 ->join('advisory_student', 'advisory_classes.id', '=', 'advisory_student.advisory_class_id')
@@ -91,17 +95,33 @@ class AdminGradeController extends Controller
                 ->whereNull('advisory_classes.deleted_at')
                 ->select('advisory_classes.id as class_id', 'advisory_classes.section')
                 ->first();
+                
             $sectionName = $advisoryClass ? "({$advisoryClass->section})" : "";
             $link = $advisoryClass ? "/teacher/advisory/{$advisoryClass->class_id}" : "/teacher/advisory";
+            
+            $currentTime = now()->toDateTimeString();
+            $semester = $grade->semester; 
+
             // Notify teacher (Approved)
             DB::table('notifications')->insert([
                 'id' => Str::uuid()->toString(),
                 'user_id' => $grade->teacher_id,
-                'description' => "Your submitted grade for {$student->first_name} {$student->last_name} {$sectionName} was approved.",
+                'description' => "Your submitted {$subjectName} grade for {$student->first_name} {$student->last_name} {$sectionName} ({$semester} Semester) was approved.",
                 'link' => $link, 
                 'is_read' => false,
-                'created_at' => now(), 
-                'updated_at' => now(),
+                'created_at' => $currentTime, 
+                'updated_at' => $currentTime,
+            ]);
+
+            // Notify student (Approved)
+            DB::table('notifications')->insert([
+                'id' => Str::uuid()->toString(),
+                'user_id' => $grade->student_id,
+                'description' => "Your final grade in {$subjectName} for SY {$grade->school_year} ({$semester} Semester) is now ready to view.",
+                'link' => "/student/grades", 
+                'is_read' => false,
+                'created_at' => $currentTime, 
+                'updated_at' => $currentTime,
             ]);
 
             return response()->json(['message' => 'Grade approved and locked.'], 200);
