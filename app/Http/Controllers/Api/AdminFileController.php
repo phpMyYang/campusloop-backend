@@ -8,6 +8,8 @@ use App\Models\User;
 use App\Models\File;
 use Illuminate\Support\Facades\Storage;
 use ZipArchive;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class AdminFileController extends Controller
 {
@@ -121,8 +123,65 @@ class AdminFileController extends Controller
     // Soft delete para sa mga selected files
     public function bulkDelete(Request $request)
     {
-        $request->validate(['file_ids' => 'required|array']);
-        File::whereIn('id', $request->file_ids)->delete();
-        return response()->json(['message' => 'Files moved to recycle bin.'], 200);
+        try {
+            $request->validate(['file_ids' => 'required|array']);
+
+            // KUNIN ANG FILES KASAMA ANG OWNER BAGO BURAHIN
+            $files = File::with('owner')->whereIn('id', $request->file_ids)->get();
+
+            // TULUYAN NANG BURAHIN (Soft Delete)
+            File::whereIn('id', $request->file_ids)->delete();
+
+            // NOTIFICATION LOGIC 
+            $actor = $request->user();
+            $actorName = $actor->first_name . ' ' . $actor->last_name;
+            $actorRole = ucfirst($actor->role);
+
+            $notifications = [];
+            $currentTime = now()->toDateTimeString();
+
+            foreach ($files as $file) {
+                $owner = $file->owner;
+                
+                if ($owner) {
+                    $ownerRole = strtolower($owner->role); 
+                    
+                    // SMART LINKING: Kapag student, sa files tab. Kapag iba, sa recycle-bin.
+                    if ($ownerRole === 'student') {
+                        $link = "/student/files";
+                    } else {
+                        $link = "/{$ownerRole}/recycle-bin"; 
+                    }
+
+                    // SMART DESCRIPTION
+                    if ($actor->id === $owner->id) {
+                        $description = "You deleted your file '{$file->name}'. It was moved to the Recycle Bin.";
+                    } else {
+                        $description = "{$actorRole} {$actorName} deleted your file '{$file->name}'. It was moved to the Recycle Bin.";
+                    }
+
+                    $notifications[] = [
+                        'id' => Str::uuid()->toString(),
+                        'user_id' => $owner->id,
+                        'description' => $description,
+                        'link' => $link,
+                        'is_read' => false,
+                        'created_at' => $currentTime,
+                        'updated_at' => $currentTime,
+                    ];
+                }
+            }
+
+            // ISAHANG BULK INSERT PARA MABILIS
+            if (!empty($notifications)) {
+                foreach (array_chunk($notifications, 500) as $chunk) {
+                    DB::table('notifications')->insert($chunk);
+                }
+            }
+
+            return response()->json(['message' => 'Files moved to recycle bin.'], 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Error: ' . $e->getMessage()], 500);
+        }
     }
 }

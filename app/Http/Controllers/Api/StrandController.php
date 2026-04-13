@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 
 class StrandController extends Controller
 {
+    // View Strand
     public function index()
     {
         // Kukunin lahat ng strands + bibilangin kung ilang students ang naka-enroll dito
@@ -18,6 +19,7 @@ class StrandController extends Controller
         return response()->json($strands, 200);
     }
 
+    // Create Strand
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -29,6 +31,7 @@ class StrandController extends Controller
         return response()->json(['message' => 'Strand created successfully!'], 201);
     }
 
+    // Update Strand
     public function update(Request $request, $id)
     {
         $strand = Strand::findOrFail($id);
@@ -42,6 +45,7 @@ class StrandController extends Controller
         return response()->json(['message' => 'Strand updated successfully!'], 200);
     }
 
+    // Delete Strand
     public function destroy($id)
     {
         $strand = Strand::findOrFail($id);

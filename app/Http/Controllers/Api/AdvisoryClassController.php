@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Models\AdvisoryClass;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\DB; 
+use Illuminate\Support\Facades\DB;
 
 class AdvisoryClassController extends Controller
 {
@@ -23,6 +24,7 @@ class AdvisoryClassController extends Controller
         }
     }
 
+    // Create Advisory Class
     public function store(Request $request)
     {
         $request->validate([
@@ -41,6 +43,7 @@ class AdvisoryClassController extends Controller
         return response()->json(['message' => 'Created successfully.', 'advisory' => $advisory], 201);
     }
 
+    // Update Advisory Class
     public function update(Request $request, $id)
     {
         $request->validate([
@@ -61,12 +64,13 @@ class AdvisoryClassController extends Controller
         return response()->json(['message' => 'Moved to recycle bin.'], 200);
     }
 
+    // View Advisory Class
     public function show(Request $request, $id)
     {
         try {
             $advisory = AdvisoryClass::where('teacher_id', $request->user()->id)->findOrFail($id);
             $enrolledIds = DB::table('advisory_student')->where('advisory_class_id', $id)->pluck('student_id');
-            $students = \App\Models\User::whereIn('id', $enrolledIds)->with('strand')->get();
+            $students = User::whereIn('id', $enrolledIds)->with('strand')->get();
 
             return response()->json(['advisory' => $advisory, 'students' => $students], 200);
         } catch (\Exception $e) {
@@ -74,11 +78,12 @@ class AdvisoryClassController extends Controller
         }
     }
 
+    // Available Student
     public function getAvailableStudents($id)
     {
         try {
             $enrolledIds = DB::table('advisory_student')->where('advisory_class_id', $id)->pluck('student_id');
-            $available = \App\Models\User::where('role', 'student')->where('status', 'active')
+            $available = User::where('role', 'student')->where('status', 'active')
                             ->whereNotIn('id', $enrolledIds)->with('strand')->get();
             return response()->json($available, 200);
         } catch (\Exception $e) {
@@ -86,6 +91,7 @@ class AdvisoryClassController extends Controller
         }
     }
 
+    // Enroll Student in Advisory Class
     public function addStudents(Request $request, $id)
     {
         try {
@@ -131,6 +137,7 @@ class AdvisoryClassController extends Controller
         return response()->json(['message' => 'Student removed.'], 200);
     }
 
+    // View Student Grade
     public function getStudentGrades($classId, $studentId)
     {
         try {
@@ -155,6 +162,7 @@ class AdvisoryClassController extends Controller
         }
     }
 
+    // Input Student Grade
     public function storeStudentGrade(Request $request, $classId, $studentId)
     {
         try {
@@ -165,7 +173,7 @@ class AdvisoryClassController extends Controller
             ]);
 
             $advisory = DB::table('advisory_classes')->where('id', $classId)->first();
-            $gradeId = \Illuminate\Support\Str::uuid()->toString();
+            $gradeId = Str::uuid()->toString();
 
             DB::table('final_grades')->insert([
                 'id' => $gradeId,
@@ -188,7 +196,7 @@ class AdvisoryClassController extends Controller
             $section = $advisory->section;
 
             // NOTIFY ADMINS WITH DYNAMIC DESCRIPTION
-            $admins = \App\Models\User::where('role', 'admin')->get();
+            $admins = User::where('role', 'admin')->get();
             foreach ($admins as $admin) {
                 DB::table('notifications')->insert([
                     'id' => Str::uuid()->toString(),
@@ -208,6 +216,7 @@ class AdvisoryClassController extends Controller
         }
     }
 
+    // Update Student Grade
     public function updateStudentGrade(Request $request, $classId, $studentId, $gradeId)
     {
         try {

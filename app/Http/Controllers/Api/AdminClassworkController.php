@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Classwork;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class AdminClassworkController extends Controller
 {
@@ -36,7 +37,57 @@ class AdminClassworkController extends Controller
             'ids.*' => 'exists:classworks,id'
         ]);
 
+        // KUNIN ANG CLASSWORKS BAGO BURAHIN PARA SA NOTIF
+        // (Isasama natin ang classroom, subject, at creator para makuha ang names)
+        $classworks = Classwork::with(['classroom.subject', 'classroom.creator'])
+            ->whereIn('id', $request->ids)
+            ->get();
+
+        // TULUYAN NANG BURAHIN (Soft Delete)
         Classwork::whereIn('id', $request->ids)->delete();
+
+        // NOTIFICATION LOGIC 
+        $admin = $request->user();
+        $adminName = $admin ? $admin->first_name . ' ' . $admin->last_name : 'Admin';
+
+        $notifications = [];
+        $currentTime = now()->toDateTimeString();
+
+        foreach ($classworks as $classwork) {
+            $classroom = $classwork->classroom;
+            
+            if ($classroom && $classroom->creator_id) {
+                $teacherId = $classroom->creator_id;
+                
+                // MGA DETALYE NA ILALAGAY SA DESCRIPTION
+                $teacherName = $classroom->creator ? $classroom->creator->first_name . ' ' . $classroom->creator->last_name : 'Teacher';
+                $subjectName = $classroom->subject ? $classroom->subject->description : 'the class';
+                $sectionName = $classroom->section;
+                
+                // Kunin ang Title ng Classwork
+                $classworkTitle = $classwork->title ?? $classwork->name ?? 'Activity';
+
+                // DIRECT ADMIN DESCRIPTION
+                $description = "Admin {$adminName} deleted the classwork '{$classworkTitle}' created by Teacher {$teacherName} in {$subjectName} ({$sectionName}).";
+
+                $notifications[] = [
+                    'id' => Str::uuid()->toString(),
+                    'user_id' => $teacherId, // Ise-send natin diretso sa Teacher na may-ari ng class
+                    'description' => $description,
+                    'link' => "/teacher/recycle-bin", // Pabalik sa recycle bin para makita nila
+                    'is_read' => false,
+                    'created_at' => $currentTime,
+                    'updated_at' => $currentTime,
+                ];
+            }
+        }
+
+        // ISAHANG BULK INSERT PARA MABILIS
+        if (!empty($notifications)) {
+            foreach (array_chunk($notifications, 500) as $chunk) {
+                DB::table('notifications')->insert($chunk);
+            }
+        }
 
         return response()->json(['message' => 'Selected classworks moved to recycle bin.'], 200);
     }

@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 
 class ClassroomController extends Controller
 {
+    // View Classrooms
     public function index(Request $request)
     {
         $classrooms = Classroom::with(['subject', 'strand', 'creator'])
@@ -23,6 +24,7 @@ class ClassroomController extends Controller
         return response()->json($classrooms, 200);
     }
 
+    // Create Classroom
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -63,6 +65,7 @@ class ClassroomController extends Controller
         return response()->json(['message' => 'Classroom created successfully!', 'code' => $code], 201);
     }
 
+    // Inside Classroom
     public function show(Request $request, $id)
     {
         $classroom = Classroom::with(['subject', 'strand', 'creator'])
@@ -75,6 +78,7 @@ class ClassroomController extends Controller
         return response()->json($classroom, 200);
     }
 
+    // Update Classroom
     public function update(Request $request, $id)
     {
         $classroom = Classroom::where('creator_id', $request->user()->id)->findOrFail($id);
@@ -96,6 +100,7 @@ class ClassroomController extends Controller
         return response()->json(['message' => 'Classroom updated successfully!'], 200);
     }
 
+    // Delete Classroom
     public function destroy(Request $request, $id)
     {
         $classroom = Classroom::where('creator_id', $request->user()->id)->findOrFail($id);
