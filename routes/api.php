@@ -40,6 +40,7 @@ use App\Http\Controllers\Api\TeacherFileController;
 use App\Http\Controllers\Api\TeacherCalendarController;
 use App\Http\Controllers\Api\TeacherHomeController;
 use App\Http\Controllers\Api\TeacherNotificationController;
+use App\Http\Controllers\Api\TeacherRecycleBinController;
 
 // Student
 use App\Http\Controllers\Api\StudentClassroomController;
@@ -233,6 +234,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('teacher/notifications', [TeacherNotificationController::class, 'index']);
     Route::put('teacher/notifications/{id}/read', [TeacherNotificationController::class, 'markAsRead']);
     Route::put('teacher/notifications/mark-all-read', [TeacherNotificationController::class, 'markAllAsRead']);
+
+    // Teacher Recycle Bin
+    Route::get('/teacher/recycle-bin', [TeacherRecycleBinController::class, 'index']);
+    Route::post('/teacher/recycle-bin/restore', [TeacherRecycleBinController::class, 'restore']);
 
     // Student Classrooms
     Route::get('/student/classrooms', [StudentClassroomController::class, 'index']);
