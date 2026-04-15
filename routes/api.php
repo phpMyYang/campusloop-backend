@@ -2,7 +2,10 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+
+// Authentication
 use App\Http\Controllers\Api\AuthController;
+
 // Admin
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\StrandController;
@@ -20,6 +23,8 @@ use App\Http\Controllers\Api\AdminClassroomGradeController;
 use App\Http\Controllers\Api\AdminFormController;
 use App\Http\Controllers\Api\AdminFileController;
 use App\Http\Controllers\Api\AdminNotificationController;
+use App\Http\Controllers\Api\AdminDashboardController;
+
 // Teacher
 use App\Http\Controllers\Api\ClassroomController;
 use App\Http\Controllers\Api\ClassworkController;
@@ -34,6 +39,7 @@ use App\Http\Controllers\Api\TeacherFileController;
 use App\Http\Controllers\Api\TeacherCalendarController;
 use App\Http\Controllers\Api\TeacherHomeController;
 use App\Http\Controllers\Api\TeacherNotificationController;
+
 // Student
 use App\Http\Controllers\Api\StudentClassroomController;
 use App\Http\Controllers\Api\StudentFormController;
@@ -147,6 +153,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('admin/notifications', [AdminNotificationController::class, 'index']);
     Route::put('admin/notifications/{id}/read', [AdminNotificationController::class, 'markAsRead']);
     Route::put('admin/notifications/mark-all-read', [AdminNotificationController::class, 'markAllAsRead']);
+
+    // Admin Dashboard
+    Route::get('/admin/dashboard', [AdminDashboardController::class, 'index']);
 
     // Teacher Classrooms
     Route::get('/classrooms', [ClassroomController::class, 'index']);
