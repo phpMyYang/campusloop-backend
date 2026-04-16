@@ -5,6 +5,18 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\SystemSetting;
 use Illuminate\Http\Request;
+use App\Models\User;
+use App\Models\Strand;
+use App\Models\Subject;
+use App\Models\Classroom;
+use App\Models\AdvisoryClass;
+use App\Models\Classwork;
+use App\Models\Form;
+use App\Models\Announcement;
+use App\Models\File;
+use App\Models\ELibrary;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Auth;
 
 class SystemSettingController extends Controller
 {
@@ -50,5 +62,83 @@ class SystemSettingController extends Controller
         }
 
         return response()->json(['message' => 'School settings have been completely reset.'], 200);
+    }
+
+    // PDF REPORT GENERATOR FUNCTION
+    public function generateReport()
+    {
+        try {
+            // Kukunin natin ang current user na nag-click ng print
+            $user = Auth::user();
+            $generatorName = $user ? $user->first_name . ' ' . $user->last_name : 'Administrator';
+
+            // Get Settings
+            $activeSetting = SystemSetting::where('is_active', true)->first();
+
+            // Get Users Stats
+            $users = [
+                'students_active' => User::where('role', 'student')->where('status', 'active')->count(),
+                'students_inactive' => User::where('role', 'student')->where('status', 'inactive')->count(),
+                'teachers_active' => User::where('role', 'teacher')->where('status', 'active')->count(),
+                'teachers_inactive' => User::where('role', 'teacher')->where('status', 'inactive')->count(),
+                'admins_active' => User::where('role', 'admin')->where('status', 'active')->count(),
+                'admins_inactive' => User::where('role', 'admin')->where('status', 'inactive')->count(),
+            ];
+
+            // Get Strands & Demographics
+            $strands = Strand::withCount(['users' => function($query) {
+                $query->where('role', 'student');
+            }])->get();
+
+            // Academic Setup
+            $academics = [
+                'subjects' => Subject::count(),
+                'classrooms' => Classroom::count(),
+                'advisories' => AdvisoryClass::count(),
+            ];
+
+            // Engagement Metrics
+            $engagement = [
+                'classworks' => Classwork::count(),
+                'forms' => Form::count(),
+                'announcements' => Announcement::count(),
+                'files' => File::count(),
+                'elibrary' => ELibrary::where('status', 'approved')->count(),
+            ];
+
+            // Active Teachers Data
+            $teachers = User::where('role', 'teacher')
+                ->where('status', 'active')
+                ->whereNull('deleted_at')
+                ->get()
+                ->map(function ($t) {
+                    return [
+                        'name' => $t->first_name . ' ' . $t->last_name,
+                        'classrooms_count' => Classroom::where('creator_id', $t->id)->count(),
+                        'forms_count' => Form::where('creator_id', $t->id)->count(),
+                        'files_count' => File::where('owner_id', $t->id)->count(),
+                    ];
+                });
+
+            // Setup Data for View
+            $data = [
+                'generator_name' => $generatorName,
+                'settings' => $activeSetting ? $activeSetting->toArray() : null,
+                'users' => $users,
+                'strands' => $strands,
+                'academics' => $academics,
+                'engagement' => $engagement,
+                'teachers' => $teachers 
+            ];
+
+            // Generate PDF
+            $pdf = Pdf::loadView('print.report', $data);
+
+            // Download directly to the browser
+            return $pdf->download('HolyFace_System_Report_'.date('Y-m-d').'.pdf');
+
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Failed to generate report: ' . $e->getMessage()], 500);
+        }
     }
 }
