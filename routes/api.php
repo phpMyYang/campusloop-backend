@@ -69,7 +69,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
     Route::post('/users/bulk-delete', [UserController::class, 'bulkDestroy']);
 
-    // Admin Academic Management - Strands
+    // Admin Strands
     Route::get('/strands', [StrandController::class, 'index']);
     Route::post('/strands', [StrandController::class, 'store']);
     Route::put('/strands/{id}', [StrandController::class, 'update']);
@@ -80,15 +80,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/settings', [SystemSettingController::class, 'store']);
     Route::post('/settings/reset', [SystemSettingController::class, 'reset']);
     Route::get('/settings/report', [SystemSettingController::class, 'generateReport']);
+    Route::post('/settings/maintenance', [SystemSettingController::class, 'toggleMaintenance']);
 
-    // Admin Academic Management - Subjects
+    // Admin Subjects
     Route::get('/subjects', [SubjectController::class, 'index']);
     Route::post('/subjects', [SubjectController::class, 'store']);
     Route::put('/subjects/{id}', [SubjectController::class, 'update']);
     Route::delete('/subjects/{id}', [SubjectController::class, 'destroy']);
     Route::post('/subjects/bulk-delete', [SubjectController::class, 'bulkDelete']);
 
-    // Admin Content Approval - Announcement
+    // Admin Announcement
     Route::get('/announcements', [AnnouncementController::class, 'index']);
     Route::post('/announcements', [AnnouncementController::class, 'store']);
     Route::post('/announcements/bulk-delete', [AnnouncementController::class, 'bulkDelete']);
@@ -114,7 +115,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/admin/student-grades/approve', [AdminGradeController::class, 'approveGrade']);
     Route::post('/admin/student-grades/decline', [AdminGradeController::class, 'declineGrade']);
 
-    // Admin Classroom Routes
+    // Admin Classroom
     Route::get('admin/classrooms', [AdminClassroomController::class, 'index']);
     Route::post('admin/classrooms/bulk-delete', [AdminClassroomController::class, 'destroyBulk']);
     Route::get('admin/classrooms/{id}', [AdminClassroomController::class, 'show']);
@@ -126,7 +127,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Admin Classwork Submission
     Route::get('admin/classworks/{id}/submissions', [AdminClassworkController::class, 'submissions']);
 
-    // Admin Classwork Comment Control
+    // Admin Classwork Comment
     Route::delete('admin/comments/{id}', [AdminCommentController::class, 'destroy']);
 
     // Admin Classroom People
