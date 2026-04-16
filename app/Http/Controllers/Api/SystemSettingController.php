@@ -141,4 +141,33 @@ class SystemSettingController extends Controller
             return response()->json(['message' => 'Failed to generate report: ' . $e->getMessage()], 500);
         }
     }
+
+    // MAINTENANCE MODE TOGGLE
+    public function toggleMaintenance()
+    {
+        try {
+            $activeSetting = SystemSetting::where('is_active', true)->first();
+            
+            if (!$activeSetting) {
+                return response()->json(['message' => 'No active school setting found. Please set School Year first.'], 404);
+            }
+
+            // Toggle ang boolean value
+            $activeSetting->maintenance_mode = !$activeSetting->maintenance_mode;
+            
+            // Lagyan ng timestamp kung kailan nag-ON
+            $activeSetting->maintenance_started_at = $activeSetting->maintenance_mode ? now() : null;
+            $activeSetting->save();
+
+            $status = $activeSetting->maintenance_mode ? 'enabled' : 'disabled';
+
+            return response()->json([
+                'message' => "Maintenance mode successfully $status.",
+                'setting' => $activeSetting
+            ], 200);
+
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Failed to toggle maintenance mode: ' . $e->getMessage()], 500);
+        }
+    }
 }
