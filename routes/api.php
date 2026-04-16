@@ -79,6 +79,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/settings', [SystemSettingController::class, 'index']);
     Route::post('/settings', [SystemSettingController::class, 'store']);
     Route::post('/settings/reset', [SystemSettingController::class, 'reset']);
+    Route::get('/settings/report', [SystemSettingController::class, 'generateReport']);
 
     // Admin Academic Management - Subjects
     Route::get('/subjects', [SubjectController::class, 'index']);
