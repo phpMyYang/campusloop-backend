@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Classroom;
 use App\Models\SystemSetting;
+use App\Models\Subject; 
+use App\Models\ActivityLog; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -62,6 +64,17 @@ class ClassroomController extends Controller
             'semester' => $activeSetting ? $activeSetting->semester : '1st',
         ]);
 
+        // SUBJECT NAME PARA SA LOG
+        $subject = Subject::find($validated['subject_id']);
+        $subjectName = $subject ? $subject->description : 'a subject';
+
+        // ACTIVITY LOG 
+        ActivityLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'Created Classroom',
+            'description' => "Created a new classroom for {$subjectName} ({$validated['section']})."
+        ]);
+
         return response()->json(['message' => 'Classroom created successfully!', 'code' => $code], 201);
     }
 
@@ -97,6 +110,18 @@ class ClassroomController extends Controller
         ]);
 
         $classroom->update($validated);
+
+        // SUBJECT NAME PARA SA LOG
+        $subject = Subject::find($validated['subject_id']);
+        $subjectName = $subject ? $subject->description : 'a subject';
+
+        // ACTIVITY LOG 
+        ActivityLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'Updated Classroom',
+            'description' => "Updated the details of classroom {$subjectName} ({$validated['section']})."
+        ]);
+
         return response()->json(['message' => 'Classroom updated successfully!'], 200);
     }
 
@@ -104,7 +129,20 @@ class ClassroomController extends Controller
     public function destroy(Request $request, $id)
     {
         $classroom = Classroom::where('creator_id', $request->user()->id)->findOrFail($id);
+
+        // DETALYE PARA SA LOG BAGO BURAHIN
+        $subjectName = $classroom->subject ? $classroom->subject->description : 'a subject';
+        $sectionName = $classroom->section;
+
         $classroom->delete(); 
+
+        // ACTIVITY LOG 
+        ActivityLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'Deleted Classroom',
+            'description' => "Moved the classroom {$subjectName} ({$sectionName}) to the recycle bin."
+        ]);
+
         return response()->json(['message' => 'Classroom moved to recycle bin.'], 200);
     }
 }

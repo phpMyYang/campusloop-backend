@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\File;
+use App\Models\ActivityLog;
 use Illuminate\Support\Facades\Storage;
 use ZipArchive;
 
@@ -71,6 +72,15 @@ class TeacherFileController extends Controller
             }
             $zip->close();
         }
+
+        $count = $files->count();
+
+        // ACTIVITY LOG
+        ActivityLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'Downloaded Files',
+            'description' => "Downloaded a ZIP archive containing {$count} of your file(s)."
+        ]);
 
         // I-return ang zip file at burahin sa server pagkatapos ma-download
         return response()->download($zipPath)->deleteFileAfterSend(true);

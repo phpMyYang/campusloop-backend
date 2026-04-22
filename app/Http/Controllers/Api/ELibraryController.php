@@ -4,9 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ELibrary;
+use App\Models\User;
+use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use App\Models\User;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB; 
 
@@ -81,6 +82,13 @@ class ELibraryController extends Controller
             ]);
         }
 
+        // ACTIVITY LOG 
+        ActivityLog::create([
+            'user_id' => $currentUser->id,
+            'action' => 'Submitted E-Library Material',
+            'description' => "Uploaded a new material for approval: '{$shortTitle}'."
+        ]);
+
         return response()->json(['message' => 'Uploaded to Global Library. Pending Admin Approval.'], 201);
     }
 
@@ -124,6 +132,15 @@ class ELibraryController extends Controller
             }
         }
 
+        $shortTitle = Str::limit($request->title, 30);
+
+        // ACTIVITY LOG 
+        ActivityLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'Updated E-Library Material',
+            'description' => "Updated and re-submitted the material: '{$shortTitle}'."
+        ]);
+
         return response()->json(['message' => 'Changes saved and re-submitted for approval.'], 200);
     }
 
@@ -131,7 +148,15 @@ class ELibraryController extends Controller
     public function destroy(Request $request, $id)
     {
         $library = ELibrary::where('creator_id', $request->user()->id)->findOrFail($id);
+        $shortTitle = Str::limit($library->title, 30);
         $library->delete();
+
+        // ACTIVITY LOG TRIGGER: Delete E-Library
+        ActivityLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'Deleted E-Library Material',
+            'description' => "Moved the material '{$shortTitle}' to the recycle bin."
+        ]);
         
         return response()->json(['message' => 'Moved to Recycle Bin.'], 200);
     }
