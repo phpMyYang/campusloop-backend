@@ -10,6 +10,7 @@ use App\Models\Form;
 use App\Models\File;
 use App\Models\ELibrary;
 use App\Models\AdvisoryClass;
+use App\Models\ActivityLog;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 
@@ -110,6 +111,7 @@ class TeacherRecycleBinController extends Controller
     {
         $userId = Auth::id();
         $items = $request->input('items', []); 
+        $restoredCount = 0;
         
         foreach ($items as $item) {
             $model = $this->getModelInstance($item['type']);
@@ -118,8 +120,18 @@ class TeacherRecycleBinController extends Controller
                 // Titingnan kung sa kanya bago i-restore
                 if ($this->verifyOwnership($record, $item['type'], $userId)) {
                     $record->restore();
+                    $restoredCount++;
                 }
             }
+        }
+
+        // ACTIVITY LOG TRIGGER: Restore Items
+        if ($restoredCount > 0) {
+            ActivityLog::create([
+                'user_id' => $userId,
+                'action' => 'Restored Items',
+                'description' => "Restored {$restoredCount} item(s) from the recycle bin back to their original locations."
+            ]);
         }
         
         return response()->json(['message' => 'Items successfully restored.']);

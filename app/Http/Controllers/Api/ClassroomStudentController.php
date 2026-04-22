@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Classroom;
+use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
@@ -14,7 +15,7 @@ class ClassroomStudentController extends Controller
     public function index($classroomId)
     {
         $classroom = Classroom::findOrFail($classroomId);
-        // Kukunin natin ang mga estudyante pati ang pivot status at strand nila
+        // Kukunin ang mga estudyante pati ang pivot status at strand
         $students = $classroom->students()->with('strand')->get();
 
         return response()->json($students, 200);
@@ -58,6 +59,17 @@ class ClassroomStudentController extends Controller
             }
         }
 
+        $count = count($request->student_ids);
+
+        // ACTIVITY LOG
+        if ($count > 0) {
+            ActivityLog::create([
+                'user_id' => $request->user()->id,
+                'action' => 'Approved Classroom Students',
+                'description' => "Approved {$count} student(s) to join the classroom {$subjectName} ({$sectionName})."
+            ]);
+        }
+
         return response()->json(['message' => 'Students successfully enrolled.'], 200);
     }
 
@@ -67,10 +79,9 @@ class ClassroomStudentController extends Controller
         $request->validate(['student_ids' => 'required|array']);
         $classroom = Classroom::with('subject')->findOrFail($classroomId);
 
-        // KUNIN MUNA ANG MGA ESTUDYANTE BAGO I-DETACH (Para ma-check kung ano ang current status nila)
+        // KUNIN MUNA ANG MGA ESTUDYANTE BAGO I-DETACH (Para ma-check kung ano ang current status)
         $studentsToNotify = $classroom->students()->whereIn('student_id', $request->student_ids)->get();
 
-        // TULUYAN NANG BURAHIN SA KLASE
         $classroom->students()->detach($request->student_ids);
 
         // NOTIFICATION LOGIC (DECLINED OR UNENROLLED)
@@ -96,7 +107,7 @@ class ClassroomStudentController extends Controller
                 'id' => \Illuminate\Support\Str::uuid()->toString(),
                 'user_id' => $student->id,
                 'description' => $description,
-                'link' => "/student/classrooms", // Pabalik lang sa listahan kasi tinanggal na sila
+                'link' => "/student/classrooms", 
                 'is_read' => false,
                 'created_at' => $currentTime,
                 'updated_at' => $currentTime,
@@ -107,6 +118,17 @@ class ClassroomStudentController extends Controller
             foreach (array_chunk($notifications, 500) as $chunk) {
                 DB::table('notifications')->insert($chunk);
             }
+        }
+
+        $count = count($request->student_ids);
+
+        // ACTIVITY LOG
+        if ($count > 0) {
+            ActivityLog::create([
+                'user_id' => $request->user()->id,
+                'action' => 'Removed/Declined Classroom Students',
+                'description' => "Removed or declined {$count} student(s) from the classroom {$subjectName} ({$sectionName})."
+            ]);
         }
 
         return response()->json(['message' => 'Students successfully removed from class.'], 200);

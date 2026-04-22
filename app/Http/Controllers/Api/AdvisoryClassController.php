@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\AdvisoryClass;
+use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
@@ -40,6 +41,12 @@ class AdvisoryClassController extends Controller
             'capacity' => $request->capacity,
         ]);
 
+        ActivityLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'Created Advisory Class',
+            'description' => "Created a new advisory class: {$request->section} for SY {$request->school_year}."
+        ]);
+
         return response()->json(['message' => 'Created successfully.', 'advisory' => $advisory], 201);
     }
 
@@ -55,12 +62,27 @@ class AdvisoryClassController extends Controller
         $advisory = AdvisoryClass::where('teacher_id', $request->user()->id)->findOrFail($id);
         $advisory->update($request->only('section', 'school_year', 'capacity'));
 
+        ActivityLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'Updated Advisory Class',
+            'description' => "Updated the details of the advisory class: {$request->section}."
+        ]);
+
         return response()->json(['message' => 'Updated successfully.', 'advisory' => $advisory], 200);
     }
 
     public function destroy(Request $request, $id)
     {
-        AdvisoryClass::where('teacher_id', $request->user()->id)->findOrFail($id)->delete();
+        $advisory = AdvisoryClass::where('teacher_id', $request->user()->id)->findOrFail($id);
+        $section = $advisory->section;
+
+        $advisory->delete();
+
+        ActivityLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'Deleted Advisory Class',
+            'description' => "Moved the advisory class {$section} to the recycle bin."
+        ]);
         return response()->json(['message' => 'Moved to recycle bin.'], 200);
     }
 
@@ -124,6 +146,14 @@ class AdvisoryClassController extends Controller
             }
             if(count($inserts) > 0) {
                 DB::table('advisory_student')->insert($inserts);
+
+                $enrolledCount = count($inserts);
+
+                ActivityLog::create([
+                    'user_id' => $request->user()->id,
+                    'action' => 'Enrolled Advisory Students',
+                    'description' => "Enrolled {$enrolledCount} student(s) to the advisory class {$advisory->section}."
+                ]);
             }
             return response()->json(['message' => 'Students added.'], 200);
         } catch (\Exception $e) {
@@ -133,7 +163,18 @@ class AdvisoryClassController extends Controller
 
     public function removeStudent(Request $request, $classId, $studentId)
     {
+        $advisory = AdvisoryClass::findOrFail($classId);
+        $student = User::find($studentId);
+        $studentName = $student ? ($student->first_name . ' ' . $student->last_name) : 'a student';
+
         DB::table('advisory_student')->where('advisory_class_id', $classId)->where('student_id', $studentId)->delete();
+
+        ActivityLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'Removed Advisory Student',
+            'description' => "Removed {$studentName} from the advisory class {$advisory->section}."
+        ]);
+
         return response()->json(['message' => 'Student removed.'], 200);
     }
 
@@ -195,6 +236,10 @@ class AdvisoryClassController extends Controller
             $studentName = $student ? ($student->first_name . ' ' . $student->last_name) : 'a student';
             $section = $advisory->section;
 
+            // KUNIN ANG SUBJECT PARA SA LOG
+            $subject = DB::table('subjects')->where('id', $request->subject_id)->first();
+            $subjectName = $subject ? $subject->description : 'a subject';
+
             // NOTIFY ADMINS WITH DYNAMIC DESCRIPTION
             $admins = User::where('role', 'admin')->get();
             foreach ($admins as $admin) {
@@ -208,6 +253,12 @@ class AdvisoryClassController extends Controller
                     'updated_at' => now(),
                 ]);
             }
+
+            ActivityLog::create([
+                'user_id' => $request->user()->id,
+                'action' => 'Encoded Final Grade',
+                'description' => "Submitted a final grade for {$studentName} in {$subjectName} ({$section}) for admin approval."
+            ]);
 
             $newGrade = DB::table('final_grades')->where('id', $gradeId)->first();
             return response()->json(['message' => 'Grade encoded.', 'grade' => $newGrade], 201);
@@ -236,6 +287,20 @@ class AdvisoryClassController extends Controller
                 'grade' => $request->grade,
                 'status' => 'pending',
                 'updated_at' => now()
+            ]);
+
+            // KUNIN ANG DETAILS PARA SA LOG
+            $advisory = DB::table('advisory_classes')->where('id', $classId)->first();
+            $student = DB::table('users')->where('id', $studentId)->first();
+            $studentName = $student ? ($student->first_name . ' ' . $student->last_name) : 'a student';
+            $subject = DB::table('subjects')->where('id', $request->subject_id)->first();
+            $subjectName = $subject ? $subject->description : 'a subject';
+            $section = $advisory ? $advisory->section : 'the class';
+            
+            ActivityLog::create([
+                'user_id' => $request->user()->id,
+                'action' => 'Updated Final Grade',
+                'description' => "Updated the pending final grade of {$studentName} in {$subjectName} ({$section})."
             ]);
 
             return response()->json(['message' => 'Grade updated.'], 200);

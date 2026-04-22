@@ -6,12 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Classroom;
 use App\Models\Classwork;
 use App\Models\File;
+use App\Models\User;
+use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use App\Models\User;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\NewClassworkPosted;
 
@@ -96,7 +97,7 @@ class ClassworkController extends Controller
         $fullLink = $frontendBaseUrl . $linkPath;
 
         foreach ($approvedStudents as $student) {
-            // 1. Ihanda ang IN-APP Bell Notification
+            // Ihanda ang IN-APP Bell Notification
             $notifications[] = [
                 'id' => Str::uuid()->toString(),
                 'user_id' => $student->id,
@@ -127,6 +128,13 @@ class ClassworkController extends Controller
                 DB::table('notifications')->insert($chunk);
             }
         }
+
+        // ACTIVITY LOG
+        ActivityLog::create([
+            'user_id' => $teacher->id,
+            'action' => 'Created Classwork',
+            'description' => "Posted a new {$classworkType}: '{$classwork->title}' in {$subjectName}."
+        ]);
 
         return response()->json(['message' => 'Classwork posted successfully!', 'classwork' => $classwork->load(['files', 'form'])], 201);
     }
@@ -180,14 +188,36 @@ class ClassworkController extends Controller
             }
         }
 
+        $classworkType = ucfirst($classwork->type);
+
+        // ACTIVITY LOG
+        ActivityLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'Updated Classwork',
+            'description' => "Updated the details of {$classworkType}: '{$classwork->title}'."
+        ]);
+
         return response()->json(['message' => 'Classwork updated successfully!'], 200);
     }
 
     // Delete Classwork
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
-        $classwork = Classwork::findOrFail($id);
+        $classwork = Classwork::with('classroom.subject')->findOrFail($id);
+
+        $title = $classwork->title ?? 'Activity';
+        $type = ucfirst($classwork->type);
+        $subjectName = $classwork->classroom && $classwork->classroom->subject ? $classwork->classroom->subject->description : 'the class';
+
         $classwork->delete(); 
+
+        // ACTIVITY LOG TRIGGER: Delete Classwork
+        ActivityLog::create([
+            'user_id' => $request->user()->id,
+            'action' => 'Deleted Classwork',
+            'description' => "Moved the {$type} '{$title}' from {$subjectName} to the recycle bin."
+        ]);
+
         return response()->json(['message' => 'Classwork moved to recycle bin.'], 200);
     }
 
@@ -252,6 +282,10 @@ class ClassworkController extends Controller
                     'updated_at' => now()
                 ]);
 
+            // KUNIN ANG DETAILS NG STUDENT PARA SA LOG
+            $student = DB::table('users')->where('id', $studentId)->first();
+            $studentName = $student ? $student->first_name . ' ' . $student->last_name : 'a student';
+
             // NOTIFICATION LOGIC FOR STUDENT
             // Kunin ang details ng classwork para malaman kung anong type (e.g., assignment, quiz) at perfect score
             $classwork = DB::table('classworks')->where('id', $classworkId)->first();
@@ -275,13 +309,19 @@ class ClassworkController extends Controller
                     'id' => Str::uuid()->toString(),
                     'user_id' => $studentId,
                     'description' => "Teacher {$teacherName} graded your {$classworkType}: '{$classworkTitle}' in {$subjectName} {$sectionName}. Score: {$scoreString}",
-                    'link' => "/student/classrooms/" . ($classroom ? $classroom->id : ''), // Ididirekta natin sa loob ng classroom nila
+                    'link' => "/student/classrooms/" . ($classroom ? $classroom->id : ''), // Ididirekta sa loob ng classroom nila
                     'is_read' => false,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
-            }
 
+                // ACTIVITY LOG
+                ActivityLog::create([
+                    'user_id' => $request->user()->id,
+                    'action' => 'Graded Submission',
+                    'description' => "Graded {$studentName}'s submission for the {$classworkType}: '{$classworkTitle}'."
+                ]);
+            }
             return response()->json(['message' => 'Grade saved successfully!'], 200);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Failed to save grade: ' . $e->getMessage()], 500);
@@ -305,7 +345,7 @@ class ClassworkController extends Controller
                 return response()->json(['message' => 'No submission found.'], 404);
             }
 
-            // SET TO 'pending' (instead of returned) PARA HINDI MAGKA-ENUM ERROR SA DATABASE! 
+            // SET TO 'pending' (instead of returned) 
             // PERO SINAVE ANG FEEDBACK PARA MALAMAN NG FRONTEND NA RETURNED ITO.
             DB::table('classwork_submissions')
                 ->where('id', $submission->id)
@@ -315,6 +355,10 @@ class ClassworkController extends Controller
                     'grade' => null, 
                     'updated_at' => now()
                 ]);
+
+            // KUNIN ANG DETAILS NG STUDENT PARA SA LOG
+            $student = DB::table('users')->where('id', $studentId)->first();
+            $studentName = $student ? $student->first_name . ' ' . $student->last_name : 'a student';
 
             // NOTIFICATION LOGIC FOR STUDENT (RETURNED)
             $classwork = DB::table('classworks')->where('id', $classworkId)->first();
@@ -341,6 +385,13 @@ class ClassworkController extends Controller
                     'is_read' => false,
                     'created_at' => now(),
                     'updated_at' => now(),
+                ]);
+
+                // ACTIVITY LOG TRIGGER: Return Submission
+                ActivityLog::create([
+                    'user_id' => $request->user()->id,
+                    'action' => 'Returned Submission',
+                    'description' => "Returned {$studentName}'s submission for the {$classworkType}: '{$classworkTitle}' with feedback."
                 ]);
             }
 

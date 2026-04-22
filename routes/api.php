@@ -207,6 +207,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/forms/{id}/duplicate', [FormController::class, 'duplicate']);
     Route::get('/forms/{id}', [FormController::class, 'show']);
     Route::get('/forms/{id}/respondents', [FormController::class, 'respondents']);
+
+    // Teacher Form Question
     Route::post('/forms/{id}/questions', [FormQuestionController::class, 'store']);
     Route::put('/questions/{id}', [FormQuestionController::class, 'update']);
     Route::delete('/questions/{id}', [FormQuestionController::class, 'destroy']);
@@ -244,6 +246,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Teacher Recycle Bin
     Route::get('/teacher/recycle-bin', [TeacherRecycleBinController::class, 'index']);
     Route::post('/teacher/recycle-bin/restore', [TeacherRecycleBinController::class, 'restore']);
+
+    // Teacher/Student Activity Log
+    Route::get('teacher/activity-logs', [ActivityLogController::class, 'indexUser']);
 
     // Student Classrooms
     Route::get('/student/classrooms', [StudentClassroomController::class, 'index']);
