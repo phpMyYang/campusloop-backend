@@ -53,12 +53,14 @@ use App\Http\Controllers\Api\StudentCalendarController;
 use App\Http\Controllers\Api\StudentHomeController;
 use App\Http\Controllers\Api\StudentNotificationController;
 
-// Public Auth Routes (Hindi kailangan ng token)
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
-Route::post('/reset-password', [AuthController::class, 'resetPassword']);
-Route::post('/resend-verification', [AuthController::class, 'resendVerificationEmail']);
-Route::post('/verify-email', [AuthController::class, 'verifyEmail']);
+// Public Auth Routes
+Route::middleware('throttle:5,1')->group(function () {
+    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+    Route::post('/resend-verification', [AuthController::class, 'resendVerificationEmail']);
+    Route::post('/verify-email', [AuthController::class, 'verifyEmail']);
+});
 
 // Protected Routes (Kailangan naka-login/may token bago ma-access)
 Route::middleware('auth:sanctum')->group(function () {
@@ -183,9 +185,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/classworks/{id}', [ClassworkController::class, 'update']);
     Route::delete('/classworks/{id}', [ClassworkController::class, 'destroy']);
 
-    // Comment & Reply
-    Route::post('/classworks/{id}/comments', [CommentController::class, 'store']);
-
     // Grading and Unsubmit Submission
     Route::get('/classworks/{id}/submissions', [ClassworkController::class, 'getSubmissions']);
     Route::post('/classworks/{id}/submissions/{studentId}/grade', [ClassworkController::class, 'gradeSubmission']);
@@ -246,6 +245,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Teacher Recycle Bin
     Route::get('/teacher/recycle-bin', [TeacherRecycleBinController::class, 'index']);
     Route::post('/teacher/recycle-bin/restore', [TeacherRecycleBinController::class, 'restore']);
+
+    // Teacher/Student Comment & Reply
+    Route::post('/classworks/{id}/comments', [CommentController::class, 'store']);
 
     // Teacher/Student Activity Log
     Route::get('teacher/activity-logs', [ActivityLogController::class, 'indexUser']);
