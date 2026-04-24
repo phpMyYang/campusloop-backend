@@ -29,7 +29,7 @@ class AdminDashboardController extends Controller
                 'files_uploaded' => File::whereNull('deleted_at')->count(),
             ];
 
-            // BAR CHART: Students per Strand (With Year Filter)
+            // BAR CHART: Students per Strand 
             $strandQuery = DB::table('users')
                 ->where('users.role', 'student')
                 ->whereNull('users.deleted_at')
@@ -40,7 +40,7 @@ class AdminDashboardController extends Controller
             }
             $studentsPerStrand = $strandQuery->selectRaw('strands.name, count(users.id) as value')->groupBy('strands.name')->get();
 
-            // DOUGHNUT CHART: Active vs Inactive Users (With Year Filter)
+            // DOUGHNUT CHART: Active vs Inactive Users 
             $statusQuery = DB::table('users')->whereNull('deleted_at');
             if ($statusYear) {
                 $statusQuery->whereYear('created_at', $statusYear);
