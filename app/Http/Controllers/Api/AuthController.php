@@ -21,7 +21,7 @@ class AuthController extends Controller
     // LOGIN LOGIC
     public function login(Request $request)
     {
-        // Validation (kasama ang reCAPTCHA v2)
+        // Validation
         $request->validate([
             'email' => 'required|email',
             'password' => 'required',
@@ -40,7 +40,7 @@ class AuthController extends Controller
             return response()->json([
                 'message' => 'Account is inactive or not verified.',
                 'require_verification' => true,
-                'email' => $user->email // Ipapasa natin pabalik para magamit sa frontend resend
+                'email' => $user->email // Ipapasa pabalik para magamit sa frontend resend
             ], 403);
         }
 
@@ -56,7 +56,7 @@ class AuthController extends Controller
             'current_session_id' => hash('sha256', $token) // Tracking reference
         ]);
 
-        // ACTIVITY LOG TRIGGER: Login
+        // ACTIVITY LOG
         ActivityLog::create([
             'user_id' => $user->id, // Ginamit ang $user->id dahil wala pang Auth state si Request dito
             'action' => 'Logged In',
@@ -78,7 +78,6 @@ class AuthController extends Controller
         $userId = $request->user()->id;
 
         // ACTIVITY LOG
-        // Inilagay bago burahin ang token para ma-read pa ang ID
         ActivityLog::create([
             'user_id' => $userId,
             'action' => 'Logged Out',
@@ -104,9 +103,8 @@ class AuthController extends Controller
 
         $user = User::where('email', $request->email)->first();
 
-        // Pag wala sa database, mag-error (404) at hindi magse-send ng email
         if (!$user) {
-            return response()->json(['message' => 'Email not found in our records.'], 404);
+            return response()->json(['message' => 'If your email is registered, you will receive a secure reset link shortly.'], 200);
         }
 
         $token = Str::random(64);
@@ -130,19 +128,19 @@ class AuthController extends Controller
             'description' => 'Requested a secure link to reset account password.'
         ]);
 
-        return response()->json(['message' => 'Secure reset link has been sent to your email.'], 200);
+        return response()->json(['message' => 'If your email is registered, you will receive a secure reset link shortly.'], 200);
     }
 
     // RESET PASSWORD LOGIC
     public function resetPassword(Request $request)
     {
-        // Strict Validation base sa requirements mo
+        // Strict Validation
         $request->validate([
             'email' => 'required|email',
             'token' => 'required',
             'password' => [
                 'required',
-                'confirmed', // Hahanapin nito ang password_confirmation field galing sa React
+                'confirmed', // Hahanapin ang password_confirmation field galing sa React
                 Password::min(8) // 8 characters pataas
                     ->letters()  // May letters (uppercase & lowercase)
                     ->mixedCase()
@@ -158,6 +156,11 @@ class AuthController extends Controller
 
         if (!$resetRequest || $resetRequest->token !== $request->token) {
             return response()->json(['message' => 'Invalid or expired reset token.'], 400);
+        }
+
+        if (Carbon::parse($resetRequest->created_at)->addHour()->isPast()) {
+            DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+            return response()->json(['message' => 'Reset link has expired. Please request a new one.'], 400);
         }
 
         // I-update ang Password ng User
@@ -208,11 +211,13 @@ class AuthController extends Controller
             return response()->json(['message' => 'Account is already verified.'], 400);
         }
 
-        // Generate Secure Hash for Verification Link
-        $hash = sha1($user->email);
+        $expires = now()->addHour()->timestamp;
+
+        // Generate Secure Hash kasama ang expiration
+        $hash = hash_hmac('sha256', $user->email . $expires, config('app.key'));
         
         // Buuin ang Verification Link pabalik sa React Frontend (Verify Page)
-        $verifyLink = env('FRONTEND_URL') . '/verify?id=' . $user->id . '&hash=' . $hash;
+        $verifyLink = env('FRONTEND_URL') . '/verify?id=' . $user->id . '&hash=' . $hash . '&expires=' . $expires . '&email=' . urlencode($user->email);
 
         // I-send ang Email gamit ang Laravel Mail
         Mail::send('emails.verify_email', ['verifyLink' => $verifyLink, 'user' => $user], function($message) use($user){
@@ -233,35 +238,48 @@ class AuthController extends Controller
     // VERIFY EMAIL LOGIC
     public function verifyEmail(Request $request)
     {
-        // Validation mula sa URL parameters na ipapasa ng React
+        // REQUIRED ang expires para mamatay ang mga lumang links
         $request->validate([
             'id' => 'required',
-            'hash' => 'required'
+            'hash' => 'required',
+            'expires' => 'required' 
+        ], [
+            'expires.required' => 'This verification link is outdated and no longer valid. Please request a new one.'
         ]);
 
         $user = User::find($request->id);
 
-        // Check kung tama ang User at ang Hash
-        if (!$user || sha1($user->email) !== $request->hash) {
-            return response()->json(['message' => 'Invalid or expired verification link.'], 400);
+        if (!$user) {
+            return response()->json(['message' => 'User not found.'], 404);
         }
 
-        // I-update ang Account to Verified and Active
-        if (!$user->email_verified_at) {
-            $user->update([
-                'email_verified_at' => now(),
-                'status' => 'active' // Automatic magiging active upon verification
-            ]);
-
-            // ACTIVITY LOG 
-            ActivityLog::create([
-                'user_id' => $user->id,
-                'action' => 'Verified Account',
-                'description' => 'Successfully verified email address and activated the account.'
-            ]);
+        // ONE-TIME USE - Kung verified it means nagamit na ang link
+        if ($user->email_verified_at) {
+            return response()->json(['message' => 'This verification link has already been used. Your account is already active.'], 400);
         }
 
-        // I-return ang data para alam ng React kung saan ire-redirect (papuntang Dashboard)
+        // EXPIRATION CHECK (Strict 1 Hour)
+        if (now()->timestamp > $request->expires) {
+            return response()->json(['message' => 'Verification link has expired. Please request a new one.'], 400);
+        }
+        
+        $expectedHash = hash_hmac('sha256', $user->email . $request->expires, config('app.key'));
+        if (!hash_equals($expectedHash, $request->hash)) {
+            return response()->json(['message' => 'Invalid verification link.'], 400);
+        }
+
+        $user->update([
+            'email_verified_at' => now(),
+            'status' => 'active' 
+        ]);
+
+        // ACTIVITY LOG
+        ActivityLog::create([
+            'user_id' => $user->id,
+            'action' => 'Verified Account',
+            'description' => 'Successfully verified email address and activated the account.'
+        ]);
+
         return response()->json([
             'message' => 'Account successfully verified and activated.',
             'status' => $user->status,
