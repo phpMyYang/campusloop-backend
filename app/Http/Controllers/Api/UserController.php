@@ -10,31 +10,61 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Support\Facades\Mail;
 
 class UserController extends Controller
 {
-    // View Users
+    private function checkAdmin(Request $request)
+    {
+        return $request->user() && $request->user()->role === 'admin';
+    }
+
+    // SERVER-SIDE PAGINATION & FILTERING
     public function index(Request $request)
     {
-        $query = User::with('strand'); // I-load ang strand data 
+        // I-check kung Admin ang nag-request
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
 
-        // Sorting by Role and Gender 
+        $query = User::with('strand'); 
+
+        // Server-side Filtering
         if ($request->has('role') && $request->role != 'all') {
             $query->where('role', $request->role);
         }
+
         if ($request->has('gender') && $request->gender != 'all') {
             $query->where('gender', $request->gender);
         }
 
-        return response()->json($query->orderBy('created_at', 'desc')->get(), 200);
+        // Server-side Searching
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('first_name', 'LIKE', "%{$search}%")
+                  ->orWhere('last_name', 'LIKE', "%{$search}%")
+                  ->orWhere('email', 'LIKE', "%{$search}%")
+                  ->orWhere('lrn', 'LIKE', "%{$search}%");
+            });
+        }
+
+        $entries = $request->has('entries') ? (int) $request->entries : 10;
+        
+        // Gagamit ng paginate() para hindi bumagsak ang memory ng server
+        return response()->json($query->orderBy('created_at', 'desc')->paginate($entries), 200);
     }
 
     // Create Users
     public function store(Request $request)
     {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -50,13 +80,12 @@ class UserController extends Controller
 
         $rawPassword = $request->password ? $request->password : Str::random(10);
         $validated['password'] = Hash::make($rawPassword);
-
         $validated['email_verified_at'] = null; 
 
         $user = User::create($validated);
 
-        // Automatic na gagawan ng folder ang LAHAT ng users
-        $folderName = str_replace(' ', '_', strtolower($user->first_name . '_' . $user->last_name . '_' . $user->id));
+        // PATH TRAVERSAL MITIGATION (Ginamit ang Str::slug)
+        $folderName = Str::slug($user->first_name . '-' . $user->last_name . '-' . $user->id);
         Storage::disk('public')->makeDirectory("users_files/{$folderName}");
 
         ActivityLog::create([
@@ -65,30 +94,35 @@ class UserController extends Controller
             'description' => "Created a new {$user->role} account for {$user->first_name} {$user->last_name}."
         ]);
 
-        // SEND WELCOME & VERIFICATION EMAIL
         $expires = now()->addHour()->timestamp;
         $hash = hash_hmac('sha256', $user->email . $expires, config('app.key'));
         $verifyLink = env('FRONTEND_URL') . '/verify?id=' . $user->id . '&hash=' . $hash . '&expires=' . $expires . '&email=' . urlencode($user->email);
         $loginLink = env('FRONTEND_URL') . '/login';
 
-        Mail::send('emails.welcome_user', [
-            'user' => $user,
-            'rawPassword' => $rawPassword,
-            'verifyLink' => $verifyLink,
-            'loginLink' => $loginLink
-        ], function($message) use($user) {
-            $message->to($user->email);
-            $message->subject('Welcome to CampusLoop - Your Account Details');
+        dispatch(function () use ($user, $rawPassword, $verifyLink, $loginLink) {
+            Mail::send('emails.welcome_user', [
+                'user' => $user,
+                'rawPassword' => $rawPassword,
+                'verifyLink' => $verifyLink,
+                'loginLink' => $loginLink
+            ], function($message) use($user) {
+                $message->to($user->email);
+                $message->subject('Welcome to CampusLoop - Your Account Details');
+            });
         });
 
         return response()->json(['message' => 'User created successfully!'], 201);
     }
 
     // Update Users
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
+        // SAFE ROLE-BASED AUTHORIZATION
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
         $user = User::findOrFail($id);
-        
         $originalUser = clone $user;
 
         $validated = $request->validate([
@@ -128,17 +162,14 @@ class UserController extends Controller
             ]);
         }
 
-        // FOLDER RENAME LOGIC
-        // Kung may nagbago sa First Name o Last Name
+        // FOLDER RENAME LOGIC (Secured with Str::slug)
         if (isset($dirtyAttributes['first_name']) || isset($dirtyAttributes['last_name'])) {
-            $oldFolderName = str_replace(' ', '_', strtolower($originalUser->first_name . '_' . $originalUser->last_name . '_' . $originalUser->id));
-            $newFolderName = str_replace(' ', '_', strtolower($user->first_name . '_' . $user->last_name . '_' . $user->id));
+            $oldFolderName = Str::slug($originalUser->first_name . '-' . $originalUser->last_name . '-' . $originalUser->id);
+            $newFolderName = Str::slug($user->first_name . '-' . $user->last_name . '-' . $user->id);
 
-            // I-check kung nag-eexist yung lumang folder bago i-rename
             if (Storage::disk('public')->exists("users_files/{$oldFolderName}")) {
                 Storage::disk('public')->move("users_files/{$oldFolderName}", "users_files/{$newFolderName}");
             } else {
-                // Kung sakaling nawala o hindi nagawa dati, gawan ng bago
                 Storage::disk('public')->makeDirectory("users_files/{$newFolderName}");
             }
         }
@@ -153,15 +184,25 @@ class UserController extends Controller
             'role' => 'Role',
             'status' => 'Account Status',
             'lrn' => 'LRN',
-            'strand_id' => 'Strand ID'
+            'strand_id' => 'Academic Strand'
         ];
 
         $changedFields = [];
         foreach ($dirtyAttributes as $key => $newValue) {
             if (array_key_exists($key, $labels) && $key !== 'password' && $key !== 'email_verified_at') {
+                
+                $oldValue = $originalUser->{$key};
+                $newVal = $newValue;
+
+                // I-convert ang Strand ID papuntang Strand Name!
+                if ($key === 'strand_id') {
+                    $oldValue = $oldValue ? Strand::find($oldValue)->name ?? 'None' : 'None';
+                    $newVal   = $newVal ? Strand::find($newVal)->name ?? 'None' : 'None';
+                }
+
                 $changedFields[$labels[$key]] = [
-                    'old' => $originalUser->{$key},
-                    'new' => $newValue
+                    'old' => $oldValue,
+                    'new' => $newVal
                 ];
             }
         }
@@ -174,12 +215,15 @@ class UserController extends Controller
         }
 
         if (count($changedFields) > 0) {
-            Mail::send('emails.user_updated', [
-                'user' => $user,
-                'changedFields' => $changedFields
-            ], function($message) use($user) {
-                $message->to($user->email);
-                $message->subject('CampusLoop - Account Information Updated');
+            // ASYNCHRONOUS EMAIL
+            dispatch(function () use ($user, $changedFields) {
+                Mail::send('emails.user_updated', [
+                    'user' => $user,
+                    'changedFields' => $changedFields
+                ], function($message) use($user) {
+                    $message->to($user->email);
+                    $message->subject('CampusLoop - Account Information Updated');
+                });
             });
         }
 
@@ -187,8 +231,12 @@ class UserController extends Controller
     }
 
     // Delete User
-    public function destroy(Request $request, $id)
+    public function destroy(Request $request, string $id)
     {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
         if ($request->user()->id == $id) {
             return response()->json(['message' => 'Action denied. You cannot delete your own account.'], 403);
         }
@@ -205,9 +253,13 @@ class UserController extends Controller
         return response()->json(['message' => 'User moved to recycle bin.'], 200);
     }
 
-    // Delete Users
+    // Bulk Delete Users
     public function bulkDestroy(Request $request)
     {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
         $request->validate(['ids' => 'required|array']);
         
         $idsToDelete = array_filter($request->ids, function($id) use ($request) {
@@ -233,15 +285,16 @@ class UserController extends Controller
     // IMPORT CSV LOGIC
     public function import(Request $request)
     {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
         $request->validate([
             'file' => 'required|file|mimes:csv|max:5120', 
         ]);
 
-        $file = $request->file('file');
-        
-        // Auto-detect line endings para sa ibat-ibang OS (Mac/Windows/Linux)
         ini_set('auto_detect_line_endings', true);
-
+        $file = $request->file('file');
         $handle = fopen($file->getPathname(), "r");
         $header = fgetcsv($handle, 1000, ",");
         
@@ -249,9 +302,7 @@ class UserController extends Controller
             return response()->json(['message' => 'The CSV file is empty or cannot be read.'], 400);
         }
 
-        // Tanggalin ang BOM (Byte Order Mark) na idinadagdag ng Excel!
         $header[0] = preg_replace('/[\xef\xbb\xbf]/', '', $header[0]);
-        
         $header = array_map('trim', $header);
         $header = array_map('strtolower', $header);
 
@@ -259,11 +310,8 @@ class UserController extends Controller
         $skippedCount = 0;
 
         while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
-            // I-skip kung empty ang buong row (mga blank spaces sa ilalim ng Excel)
             if (empty(array_filter($data))) continue; 
             
-            // Kung hindi pantay ang bilang ng column ng header at data, 
-            // aayusin ito para hindi mag-error ang array_combine()
             if (count($header) !== count($data)) {
                 $data = array_pad($data, count($header), '');
                 $data = array_slice($data, 0, count($header));
@@ -271,17 +319,22 @@ class UserController extends Controller
             
             $row = array_combine($header, $data);
             
-            // Tanggalin ang extra spaces sa bawat text
+            // CSV INJECTION SANITIZATION
             $row = array_map(function($value) {
-                return trim($value ?? '');
+                $value = trim($value ?? '');
+                // Harangin ang mga formulas (=, +, -, @)
+                if (preg_match('/^[=\+\-\@]/', $value)) {
+                    $value = "'" . $value; 
+                }
+                return $value;
             }, $row);
 
-            // I-check kung may laman ang mga required fields
             if (empty($row['email']) || empty($row['first_name']) || empty($row['last_name'])) {
+                $skippedCount++;
                 continue;
             }
 
-            // SKIP IF EMAIL OR LRN ALREADY EXISTS
+            // Skip existing users
             $query = User::where('email', $row['email']);
             if (!empty($row['lrn'])) {
                 $query->orWhere('lrn', $row['lrn']);
@@ -291,60 +344,67 @@ class UserController extends Controller
                 continue; 
             }
 
-            // CONVERT STRAND NAME TO STRAND ID (Case Insensitive)
-            $strandId = null;
-            $csvStrandName = $row['strand'] ?? $row['strand_name'] ?? null;
-            
-            if (!empty($csvStrandName)) {
-                $strand = Strand::where('name', 'LIKE', $csvStrandName)->first();
-                if ($strand) {
-                    $strandId = $strand->id;
+            // HALF-FAILED IMPORTS (Row-Level Transaction)
+            DB::beginTransaction();
+            try {
+                $strandId = null;
+                $csvStrandName = $row['strand'] ?? $row['strand_name'] ?? null;
+                if (!empty($csvStrandName)) {
+                    $strand = Strand::where('name', 'LIKE', $csvStrandName)->first();
+                    if ($strand) {
+                        $strandId = $strand->id;
+                    }
                 }
+
+                $rawPassword = Str::random(12);
+
+                $user = User::create([
+                    'first_name' => $row['first_name'],
+                    'last_name'  => $row['last_name'],
+                    'gender'     => !empty($row['gender']) ? $row['gender'] : 'Not Specified',
+                    'birthday'   => !empty($row['birthday']) ? date('Y-m-d', strtotime($row['birthday'])) : '2000-01-01',
+                    'email'      => $row['email'],
+                    'password'   => Hash::make($rawPassword),
+                    'role'       => strtolower($row['role'] ?? 'student'),
+                    'status'     => 'inactive',
+                    'lrn'        => $row['lrn'] ?? null,
+                    'strand_id'  => $strandId,
+                ]);
+
+                // PATH TRAVERSAL MITIGATION
+                $folderName = Str::slug($user->first_name . '-' . $user->last_name . '-' . $user->id);
+                Storage::disk('public')->makeDirectory("users_files/{$folderName}");
+
+                $expires = now()->addHour()->timestamp;
+                $hash = hash_hmac('sha256', $user->email . $expires, config('app.key'));
+                $verifyLink = env('FRONTEND_URL') . '/verify?id=' . $user->id . '&hash=' . $hash . '&expires=' . $expires . '&email=' . urlencode($user->email);
+                $loginLink = env('FRONTEND_URL') . '/login';
+
+                dispatch(function () use ($user, $rawPassword, $verifyLink, $loginLink) {
+                    Mail::send('emails.welcome_user', [
+                        'user' => $user,
+                        'rawPassword' => $rawPassword,
+                        'verifyLink' => $verifyLink,
+                        'loginLink' => $loginLink
+                    ], function($message) use($user) {
+                        $message->to($user->email);
+                        $message->subject('Welcome to CampusLoop - Your Account Details');
+                    });
+                });
+
+                DB::commit(); // I-save sa database kapag walang nag-error
+                $successCount++;
+
+            } catch (\Exception $e) {
+                DB::rollBack(); // I-cancel ang pag-save kapag may pumalya sa row na ito
+                $skippedCount++;
             }
-
-            // AUTO-GENERATE RANDOM SECURE PASSWORD
-            $rawPassword = Str::random(12);
-
-            $user = User::create([
-                'first_name' => $row['first_name'],
-                'last_name'  => $row['last_name'],
-                'gender'     => !empty($row['gender']) ? $row['gender'] : 'Not Specified',
-                'birthday'   => !empty($row['birthday']) ? date('Y-m-d', strtotime($row['birthday'])) : '2000-01-01',
-                'email'      => $row['email'],
-                'password'   => Hash::make($rawPassword),
-                'role'       => strtolower($row['role'] ?? 'student'),
-                'status'     => 'inactive',
-                'lrn'        => $row['lrn'] ?? null,
-                'strand_id'  => $strandId,
-            ]);
-
-            // Automatic na gagawan ng folder ang LAHAT ng users
-            $folderName = str_replace(' ', '_', strtolower($user->first_name . '_' . $user->last_name . '_' . $user->id));
-            Storage::disk('public')->makeDirectory("users_files/{$folderName}");
-
-            // SEND WELCOME & VERIFICATION EMAIL 
-            $expires = now()->addHour()->timestamp;
-            $hash = hash_hmac('sha256', $user->email . $expires, config('app.key'));
-            $verifyLink = env('FRONTEND_URL') . '/verify?id=' . $user->id . '&hash=' . $hash . '&expires=' . $expires . '&email=' . urlencode($user->email);
-            $loginLink = env('FRONTEND_URL') . '/login';
-
-            Mail::send('emails.welcome_user', [
-                'user' => $user,
-                'rawPassword' => $rawPassword,
-                'verifyLink' => $verifyLink,
-                'loginLink' => $loginLink
-            ], function($message) use($user) {
-                $message->to($user->email);
-                $message->subject('Welcome to CampusLoop - Your Account Details');
-            });
-
-            $successCount++;
         }
         fclose($handle);
 
         $activityDesc = "Successfully imported {$successCount} new users from a CSV file.";
         if ($skippedCount > 0) {
-            $activityDesc .= " Skipped {$skippedCount} duplicates.";
+            $activityDesc .= " Skipped {$skippedCount} duplicates/errors.";
         }
 
         ActivityLog::create([
@@ -354,7 +414,7 @@ class UserController extends Controller
         ]);
 
         return response()->json([
-            'message' => "Import complete! {$successCount} users created. {$skippedCount} skipped. Welcome emails sent."
+            'message' => "Import complete! {$successCount} users created. {$skippedCount} skipped."
         ], 200);
     }
 }
