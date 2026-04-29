@@ -16,36 +16,88 @@ use Illuminate\Support\Facades\Storage;
 
 class AnnouncementController extends Controller
 {
+    // SECURITY FEATURE: Admin Checker
+    private function checkAdmin(Request $request)
+    {
+        return $request->user() && $request->user()->role === 'admin';
+    }
+
     // View announcement
     public function index(Request $request)
     {
-        $announcements = Announcement::with([
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
+        $query = Announcement::with([
             'files',
             'creator',
             'comments' => function($q) {
-                // Kukunin ang comments na walang parent (main comments)
                 $q->whereNull('parent_id')
-                  ->with(['user', 'replies.user']) // Isasama ang user at mga replies
+                  ->with(['user', 'replies.user'])
                   ->orderBy('created_at', 'asc');
             }
-        ])
-        ->where('creator_id', $request->user()->id)
-        ->orderBy('created_at', 'desc')
-        ->get();
+        ])->where('creator_id', $request->user()->id);
 
-        return response()->json($announcements, 200);
+        // Server-side Searching
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('title', 'LIKE', "%{$search}%")
+                  ->orWhere('content', 'LIKE', "%{$search}%");
+            });
+        }
+
+        // Server-side Filtering by Attachments
+        if ($request->has('filterAttachment') && $request->filterAttachment != 'all') {
+            $attachment = $request->filterAttachment;
+            if ($attachment === 'files') {
+                $query->has('files');
+            } elseif ($attachment === 'links') {
+                $query->whereNotNull('link');
+            } elseif ($attachment === 'both') {
+                $query->has('files')->whereNotNull('link');
+            } elseif ($attachment === 'none') {
+                $query->doesntHave('files')->whereNull('link');
+            }
+        }
+
+        // Server-side Filtering by Status (Based on dates)
+        if ($request->has('filterStatus') && $request->filterStatus != 'all') {
+            $now = now();
+            $status = $request->filterStatus;
+            if ($status === 'Pending') {
+                $query->where('publish_from', '>', $now);
+            } elseif ($status === 'Published') {
+                $query->where('publish_from', '<=', $now)
+                      ->where('valid_until', '>=', $now);
+            } elseif ($status === 'Done') {
+                $query->where('valid_until', '<', $now);
+            }
+        }
+
+        // Server-side Sorting
+        $sortOrder = $request->input('sortDate', 'newest') === 'oldest' ? 'asc' : 'desc';
+        $query->orderBy('created_at', $sortOrder);
+
+        $entries = $request->has('entries') ? (int) $request->entries : 10;
+        
+        return response()->json($query->paginate($entries), 200);
     }
 
     // Create Announcement
     public function store(Request $request)
     {
+        if (!$this->checkAdmin($request)) return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'content' => 'required|string',
-            'link' => 'nullable|url',
+            'link' => 'nullable|url|starts_with:http://,https://',
             'publish_from' => 'required|date',
             'valid_until' => 'required|date|after:publish_from',
-            'files.*' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx,png,jpg,jpeg,gif,mp4,mov,avi|max:20480' 
+            'files' => 'nullable|array|max:5',
+            'files.*' => 'nullable|file|mimes:pdf,jpg,jpeg,gif,mp4,mov,avi|max:20480'
         ]);
 
         $announcement = Announcement::create([
@@ -76,10 +128,10 @@ class AnnouncementController extends Controller
         $adminName = $request->user()->first_name . ' ' . $request->user()->last_name;
         $announcementTitle = Str::limit($announcement->title, 25);
 
-        // CONDITIONAL DESCRIPTION: Dito magbabago ang text
+        // CONDITIONAL DESCRIPTION
         if ($publishFromDate->greaterThan($now)) {
             // KUNG FUTURE DATE (Scheduled)
-            $formattedDate = $publishFromDate->format('M d, Y h:i A'); // Halimbawa: Apr 08, 2026 08:00 AM
+            $formattedDate = $publishFromDate->format('M d, Y h:i A'); // Apr 08, 2026 08:00 AM
             $descriptionText = "Admin {$adminName} scheduled an announcement: '{$announcementTitle}'. Wait for it on {$formattedDate}.";
         } else {
             // KUNG PUBLISHED NA NGAYON
@@ -127,15 +179,18 @@ class AnnouncementController extends Controller
     // Update Announcement
     public function update(Request $request, $id)
     {
+        if (!$this->checkAdmin($request)) return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+
         $announcement = Announcement::where('creator_id', $request->user()->id)->findOrFail($id);
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'content' => 'required|string',
-            'link' => 'nullable',
+            'link' => 'nullable|url|starts_with:http://,https://',
             'publish_from' => 'required|date',
             'valid_until' => 'required|date|after:publish_from',
-            'files.*' => 'nullable|file|mimes:pdf,doc,docx,xls,xlsx,png,jpg,jpeg,gif,mp4,mov,avi|max:20480',
+            'files' => 'nullable|array|max:5',
+            'files.*' => 'nullable|file|mimes:pdf,jpg,jpeg,gif,mp4,mov,avi|max:20480'
         ]);
 
         $announcement->update([
@@ -150,6 +205,8 @@ class AnnouncementController extends Controller
         if ($request->has('deleted_file_ids') && is_array($request->deleted_file_ids)) {
             $filesToDelete = File::whereIn('id', $request->deleted_file_ids)->get();
             foreach ($filesToDelete as $file) {
+                // Remove file from server storage
+                Storage::disk('public')->delete(str_replace('/storage/', '', $file->path));
                 $file->delete(); 
             }
         }
@@ -182,9 +239,18 @@ class AnnouncementController extends Controller
     // Single Delete Announcement
     public function destroy(Request $request, $id)
     {
+        if (!$this->checkAdmin($request)) return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+
         $announcement = Announcement::where('creator_id', $request->user()->id)->findOrFail($id);
         $announcementTitle = Str::limit($announcement->title, 25);
+
+        // Delete all associated physical files before deleting the announcement
+        foreach ($announcement->files as $file) {
+            Storage::disk('public')->delete(str_replace('/storage/', '', $file->path));
+        }
+
         $announcement->delete(); 
+
         ActivityLog::create([
             'user_id' => $request->user()->id,
             'action' => 'Deleted Announcement',
@@ -196,6 +262,8 @@ class AnnouncementController extends Controller
     // Bulk Delete Announcement
     public function bulkDelete(Request $request)
     {
+        if (!$this->checkAdmin($request)) return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+
         $request->validate(['ids' => 'required|array']);
         $count = count($request->ids);
         Announcement::where('creator_id', $request->user()->id)
@@ -215,6 +283,8 @@ class AnnouncementController extends Controller
     // Post Comment
     public function postComment(Request $request, $announcementId)
     {
+        if (!$this->checkAdmin($request)) return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+
         $request->validate([
             'content' => 'required|string',
             'parent_id' => 'nullable'
@@ -266,24 +336,32 @@ class AnnouncementController extends Controller
                 ->pluck('user_id')
                 ->unique();
 
-            foreach ($participantIds as $pId) {
-                $pUser = User::find($pId);
-                if ($pUser) {
-                    // I-set ang tamang link base sa role ng participant
-                    $link = "/";
-                    if ($pUser->role === 'student') $link = "/student/home";
-                    elseif ($pUser->role === 'teacher') $link = "/teacher/home";
-                    elseif ($pUser->role === 'admin') $link = "/admin/announcements";
-                    // Notify Teacher and Student (Comment)
-                    DB::table('notifications')->insert([
-                        'id' => Str::uuid()->toString(),
-                        'user_id' => $pUser->id,
-                        'description' => "Admin {$adminName} added a comment on '{$announcementTitle}': \"{$snippet}\"",
-                        'link' => $link,
-                        'is_read' => false,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
+            // Fetch all users at once (Single Query)
+            $pUsers = User::whereIn('id', $participantIds)->get();
+            $notifications = [];
+
+            foreach ($pUsers as $pUser) {
+                $link = "/";
+                if ($pUser->role === 'student') $link = "/student/home";
+                elseif ($pUser->role === 'teacher') $link = "/teacher/home";
+                elseif ($pUser->role === 'admin') $link = "/admin/announcements";
+                
+                // Prepare array instead of inserting immediately
+                $notifications[] = [
+                    'id' => Str::uuid()->toString(),
+                    'user_id' => $pUser->id,
+                    'description' => "Admin {$adminName} added a comment on '{$announcementTitle}': \"{$snippet}\"",
+                    'link' => $link,
+                    'is_read' => false,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+
+            // Bulk insert outside the loop
+            if (!empty($notifications)) {
+                foreach (array_chunk($notifications, 500) as $chunk) {
+                    DB::table('notifications')->insert($chunk);
                 }
             }
         }
@@ -300,6 +378,8 @@ class AnnouncementController extends Controller
     // Update Comment
     public function updateComment(Request $request, $id)
     {
+        if (!$this->checkAdmin($request)) return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+
         $request->validate(['content' => 'required|string']);
         $comment = Comment::where('user_id', $request->user()->id)->findOrFail($id);
         $comment->update(['content' => $request->content]);
@@ -316,7 +396,15 @@ class AnnouncementController extends Controller
     // Delete Comment
     public function deleteComment(Request $request, $id)
     {
-        $comment = Comment::findOrFail($id);
+        if (!$this->checkAdmin($request)) return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+
+        // Ensure only the owner or an admin can delete the comment
+        $comment = Comment::where('id', $id)
+            ->where(function($query) use ($request) {
+                $query->where('user_id', $request->user()->id)
+                      ->orWhere(DB::raw("'".$request->user()->role."'"), 'admin'); 
+            })->firstOrFail();
+
         $comment->forceDelete(); 
         
         ActivityLog::create([
