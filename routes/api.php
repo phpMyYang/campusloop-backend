@@ -64,6 +64,7 @@ Route::middleware('throttle:5,1')->group(function () {
 
 // Protected Routes (Kailangan naka-login/may token bago ma-access)
 Route::middleware('auth:sanctum')->group(function () {
+    // Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () { - mamaya na pag natapos na lahat gawin or i-update.
 
     // Admin User Records
     Route::get('/users', [UserController::class, 'index']);
