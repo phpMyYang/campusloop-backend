@@ -9,6 +9,12 @@ use Illuminate\Http\Request;
 
 class StrandController extends Controller
 {
+    // SECURITY FEATURE
+    private function checkAdmin(Request $request)
+    {
+        return $request->user() && $request->user()->role === 'admin';
+    }
+
     // View Strand
     public function index()
     {
@@ -23,6 +29,10 @@ class StrandController extends Controller
     // Create Strand
     public function store(Request $request)
     {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255|unique:strands,name',
             'description' => 'required|string'
@@ -43,6 +53,10 @@ class StrandController extends Controller
     // Update Strand
     public function update(Request $request, $id)
     {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
         $strand = Strand::findOrFail($id);
 
         $validated = $request->validate([
@@ -64,6 +78,10 @@ class StrandController extends Controller
     // Delete Strand
     public function destroy(Request $request, $id)
     {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+        
         $strand = Strand::findOrFail($id);
         
         ActivityLog::create([
