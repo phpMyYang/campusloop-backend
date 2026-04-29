@@ -9,17 +9,52 @@ use Illuminate\Http\Request;
 
 class SubjectController extends Controller
 {
-    // View Subject
-    public function index()
+    // SECURITY FEATURE
+    private function checkAdmin(Request $request)
     {
-        // Isinama natin ang 'strand' para makuha ang strand name 
-        $subjects = Subject::with('strand')->orderBy('created_at', 'desc')->get();
-        return response()->json($subjects, 200);
+        return $request->user() && $request->user()->role === 'admin';
+    }
+
+    // View Subject
+    public function index(Request $request)
+    {
+        $query = Subject::with('strand');
+
+        // Server-side Searching
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('code', 'LIKE', "%{$search}%")
+                  ->orWhere('description', 'LIKE', "%{$search}%");
+            });
+        }
+
+        // Server-side Filtering
+        if ($request->has('filterStrand') && $request->filterStrand !== 'all') {
+            $query->where('strand_id', $request->filterStrand);
+        }
+        if ($request->has('filterGrade') && $request->filterGrade !== 'all') {
+            $query->where('grade_level', $request->filterGrade);
+        }
+        if ($request->has('filterSemester') && $request->filterSemester !== 'all') {
+            $query->where('semester', $request->filterSemester);
+        }
+
+        $query->orderBy('created_at', 'desc');
+
+        $entries = $request->has('entries') ? (int) $request->entries : 10;
+        
+        // Gagamit ng paginate() para iwas RAM overload (DoS mitigation)
+        return response()->json($query->paginate($entries), 200);
     }
 
     // Create Subject
     public function store(Request $request)
     {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
         $validated = $request->validate([
             'code' => 'required|string|max:255|unique:subjects,code',
             'description' => 'required|string',
@@ -43,6 +78,10 @@ class SubjectController extends Controller
     // Update Subject
     public function update(Request $request, $id)
     {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
         $subject = Subject::findOrFail($id);
 
         $validated = $request->validate([
@@ -67,6 +106,10 @@ class SubjectController extends Controller
     // Delete Subject
     public function destroy(Request $request, $id)
     {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
         $subject = Subject::findOrFail($id);
 
         ActivityLog::create([
@@ -82,7 +125,11 @@ class SubjectController extends Controller
     // Para sa Multiple Deletion 
     public function bulkDelete(Request $request)
     {
-        $request->validate(['ids' => 'required|array']);
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
+        $request->validate(['ids' => 'required|array|max:100']);
         $count = count($request->ids);
 
         if ($count > 0) {
