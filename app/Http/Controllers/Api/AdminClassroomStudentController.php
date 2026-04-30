@@ -12,18 +12,69 @@ use Illuminate\Support\Str;
 
 class AdminClassroomStudentController extends Controller
 {
-    // Kunin lahat ng students na nasa classroom (Pending at Approved)
-    public function index($classroomId)
+    // SECURITY FEATURE
+    private function checkAdmin(Request $request)
     {
-        $classroom = Classroom::with(['students.strand'])->findOrFail($classroomId);
-        return response()->json($classroom->students, 200);
+        return $request->user() && $request->user()->role === 'admin';
+    }
+
+    // Kunin lahat ng students na nasa classroom (Pending at Approved)
+    public function index(Request $request, $classroomId)
+    {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
+        // Kunin ang classroom at i-verify na nag-e-exist
+        $classroom = Classroom::findOrFail($classroomId);
+
+        // Mag-build ng query sa users table na naka-join sa classroom_student pivot
+        $query = $classroom->students()->with('strand');
+
+        // SERVER-SIDE SEARCH
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('users.first_name', 'LIKE', "%{$search}%")
+                  ->orWhere('users.last_name', 'LIKE', "%{$search}%")
+                  ->orWhere(DB::raw("CONCAT(users.first_name, ' ', users.last_name)"), 'LIKE', "%{$search}%")
+                  ->orWhere('users.email', 'LIKE', "%{$search}%")
+                  ->orWhere('users.lrn', 'LIKE', "%{$search}%");
+            });
+        }
+
+        // SERVER-SIDE GENDER FILTER
+        if ($request->has('gender') && $request->gender !== 'all') {
+            $query->where('users.gender', $request->gender);
+        }
+
+        // SERVER-SIDE STATUS FILTER (Mula sa pivot table)
+        if ($request->has('status') && $request->status !== 'all') {
+            $query->wherePivot('status', $request->status);
+        }
+
+        // PAGINATION
+        $entries = $request->has('entries') ? (int) $request->entries : 10;
+        
+        // Arrange alphabetically para malinis
+        $paginatedStudents = $query->orderBy('users.last_name', 'asc')->paginate($entries);
+
+        return response()->json([
+            'data' => $paginatedStudents->items(),
+            'total' => $paginatedStudents->total(),
+            'last_page' => $paginatedStudents->lastPage()
+        ], 200);
     }
 
     // I-approve ang mga pending students
     public function approve(Request $request, $classroomId)
     {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
         $request->validate([
-            'student_ids' => 'required|array',
+            'student_ids' => 'required|array|max:100',
             'student_ids.*' => 'exists:users,id'
         ]);
 
@@ -94,8 +145,12 @@ class AdminClassroomStudentController extends Controller
     // I-remove o i-decline ang mga students
     public function remove(Request $request, $classroomId)
     {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
         $request->validate([
-            'student_ids' => 'required|array',
+            'student_ids' => 'required|array|max:100',
             'student_ids.*' => 'exists:users,id'
         ]);
 
