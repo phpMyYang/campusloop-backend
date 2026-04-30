@@ -11,24 +11,64 @@ use Illuminate\Support\Facades\DB;
 
 class AdminClassroomController extends Controller
 {
-    // Fetch all classrooms with relations and enrolled count
-    public function index()
+    // SECURITY FEATURE
+    private function checkAdmin(Request $request)
     {
-        $classrooms = Classroom::with(['creator', 'subject', 'strand'])
+        return $request->user() && $request->user()->role === 'admin';
+    }
+
+    // Fetch all classrooms with relations and enrolled count
+    public function index(Request $request)
+    {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
+        $query = Classroom::with(['creator', 'subject', 'strand'])
             ->withCount(['students as enrolled_count' => function ($query) {
                 $query->where('classroom_student.status', 'approved');
-            }])
-            ->orderBy('created_at', 'desc')
-            ->get();
+            }]);
 
-        return response()->json($classrooms, 200);
+        // Server-Side Searching (Cross-table search)
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('section', 'LIKE', "%{$search}%")
+                  ->orWhere('code', 'LIKE', "%{$search}%")
+                  ->orWhereHas('subject', function($sq) use ($search) {
+                      $sq->where('description', 'LIKE', "%{$search}%");
+                  })
+                  ->orWhereHas('creator', function($cq) use ($search) {
+                      $cq->where('first_name', 'LIKE', "%{$search}%")
+                         ->orWhere('last_name', 'LIKE', "%{$search}%");
+                  });
+            });
+        }
+
+        // Server-Side Grade Level Filter
+        if ($request->has('filterGradeLevel') && $request->filterGradeLevel !== 'all') {
+            $query->where('grade_level', $request->filterGradeLevel);
+        }
+
+        // Server-Side Sorting
+        $sortOrder = $request->input('sortOrder', 'newest') === 'oldest' ? 'asc' : 'desc';
+        $query->orderBy('created_at', $sortOrder);
+
+        // Pagination Limit
+        $entries = $request->has('entries') ? (int) $request->entries : 10;
+
+        return response()->json($query->paginate($entries), 200);
     }
 
     // Bulk Delete (Soft Delete)
     public function destroyBulk(Request $request)
     {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
         $request->validate([
-            'ids' => 'required|array',
+            'ids' => 'required|array|max:100',
             'ids.*' => 'exists:classrooms,id'
         ]);
 
@@ -84,8 +124,12 @@ class AdminClassroomController extends Controller
     }
 
     // Fetch Specific Classroom for Inside View
-    public function show($id)
+    public function show(Request $request, $id)
     {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
         $classroom = Classroom::with(['creator', 'subject', 'strand'])
             ->withCount(['students as enrolled_count' => function ($query) {
                 $query->where('classroom_student.status', 'approved');
