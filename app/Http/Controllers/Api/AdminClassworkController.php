@@ -11,10 +11,20 @@ use Illuminate\Support\Str;
 
 class AdminClassworkController extends Controller
 {
-    // Kukunin lahat ng Classworks sa loob ng isang Classroom
-    public function index($classroomId)
+    // SECURITY FEATURE
+    private function checkAdmin(Request $request)
     {
-        $classworks = Classwork::with([
+        return $request->user() && $request->user()->role === 'admin';
+    }
+
+    // Kukunin lahat ng Classworks sa loob ng isang Classroom
+    public function index(Request $request, $classroomId)
+    {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
+        $query = Classwork::with([
             'files',
             'form',
             'comments' => function ($query) {
@@ -23,9 +33,19 @@ class AdminClassworkController extends Controller
                       ->orderBy('created_at', 'asc');
             }
         ])
-        ->where('classroom_id', $classroomId)
-        ->orderBy('created_at', 'desc')
-        ->get();
+        ->where('classroom_id', $classroomId);
+
+        // Server-Side Search implementation
+        if ($request->has('search') && !empty($request->search)) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('title', 'LIKE', "%{$search}%")
+                  ->orWhere('instruction', 'LIKE', "%{$search}%"); 
+            });
+        }
+
+        // Kunin lahat ng filtered results
+        $classworks = $query->orderBy('created_at', 'desc')->get();
 
         return response()->json($classworks, 200);
     }
@@ -33,8 +53,12 @@ class AdminClassworkController extends Controller
     // Bulk Delete para sa Classworks
     public function destroyBulk(Request $request)
     {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
         $request->validate([
-            'ids' => 'required|array',
+            'ids' => 'required|array|max:100',
             'ids.*' => 'exists:classworks,id'
         ]);
 
@@ -104,16 +128,18 @@ class AdminClassworkController extends Controller
     }
 
     // FETCH RESPONDENTS (BULLETPROOF RAW DB QUERY)
-    public function submissions($id)
+    public function submissions(Request $request, $id)
     {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
         try {
-            // Hanapin ang classwork
             $classwork = DB::table('classworks')->where('id', $id)->first();
             if (!$classwork) {
                 return response()->json(['message' => 'Classwork not found'], 404);
             }
 
-            // Kunin ang mga approved student IDs sa pivot table
             $studentIds = DB::table('classroom_student')
                 ->where('classroom_id', $classwork->classroom_id)
                 ->where('status', 'approved')
@@ -122,29 +148,45 @@ class AdminClassworkController extends Controller
                 ->toArray();
 
             if (empty($studentIds)) {
-                return response()->json([], 200); // Kung walang students, ibalik as empty array
+                return response()->json([
+                    'data' => [],
+                    'total' => 0,
+                    'last_page' => 1
+                ], 200);
             }
 
-            // Kunin ang impormasyon ng mga estudyante
-            $students = DB::table('users')
+            // SERVER-SIDE SEARCH QUERY
+            $studentQuery = DB::table('users')
                 ->whereIn('id', $studentIds)
-                ->select('id', 'first_name', 'last_name', 'lrn')
-                ->orderBy('last_name', 'asc') // Arrange alphabetically by default
-                ->get();
+                ->select('id', 'first_name', 'last_name', 'lrn');
 
-            // Kunin ang mga submissions
+            if ($request->has('search') && !empty($request->search)) {
+                $search = $request->search;
+                $studentQuery->where(function($q) use ($search) {
+                    $q->where('first_name', 'LIKE', "%{$search}%")
+                      ->orWhere('last_name', 'LIKE', "%{$search}%")
+                      ->orWhere(DB::raw("CONCAT(first_name, ' ', last_name)"), 'LIKE', "%{$search}%")
+                      ->orWhere('lrn', 'LIKE', "%{$search}%");
+                });
+            }
+
+            // PAGINATION (Kukunin lang ang naka-limit per page)
+            $entries = $request->has('entries') ? (int) $request->entries : 10;
+            $paginatedStudents = $studentQuery->orderBy('last_name', 'asc')->paginate($entries);
+
+            // Kunin ang mga submissions ng NAKA-PAGINATE na students lang (Para mabilis)
+            $currentPageStudentIds = collect($paginatedStudents->items())->pluck('id')->toArray();
+
             $submissions = DB::table('classwork_submissions')
                 ->where('classwork_id', $id)
-                ->whereIn('student_id', $studentIds)
+                ->whereIn('student_id', $currentPageStudentIds)
                 ->get()
                 ->keyBy('student_id');
 
-            // Kunin ang mga files ng mga submissions (TINAMA YUNG 'attachable_type')
             $submissionIds = $submissions->pluck('id')->toArray();
             $files = [];
             if (!empty($submissionIds)) {
                 $filesData = DB::table('files')
-                    // SALUHIN ANG KAHIT ANONG FORMAT NG PAGKA-SAVE SA DATABASE
                     ->whereIn('attachable_type', ['classwork_submission', 'App\\Models\\ClassworkSubmission']) 
                     ->whereIn('attachable_id', $submissionIds)
                     ->whereNull('deleted_at')
@@ -155,9 +197,8 @@ class AdminClassworkController extends Controller
                 }
             }
 
-            // Pagsamahin nang manual
             $respondents = [];
-            foreach ($students as $student) {
+            foreach ($paginatedStudents->items() as $student) {
                 $sub = $submissions->has($student->id) ? (array) $submissions->get($student->id) : null;
                 
                 if ($sub) {
@@ -173,7 +214,12 @@ class AdminClassworkController extends Controller
                 ];
             }
 
-            return response()->json($respondents, 200);
+            // Ibabalik natin kasama ang pagination metadata
+            return response()->json([
+                'data' => $respondents,
+                'total' => $paginatedStudents->total(),
+                'last_page' => $paginatedStudents->lastPage(),
+            ], 200);
 
         } catch (\Exception $e) {
             return response()->json([
