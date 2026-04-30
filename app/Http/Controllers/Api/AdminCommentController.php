@@ -9,9 +9,19 @@ use Illuminate\Http\Request;
 
 class AdminCommentController extends Controller
 {
+    // SECURITY FEATURE
+    private function checkAdmin(Request $request)
+    {
+        return $request->user() && $request->user()->role === 'admin';
+    }
+
     // Delete ng specific comment or reply
     public function destroy(Request $request, $id)
     {
+        if (!$this->checkAdmin($request)) {
+            return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
+        }
+
         $comment = Comment::findOrFail($id);
 
         // Kung parent comment ito, idelete din natin ang lahat ng replies na nakakabit sa kanya
