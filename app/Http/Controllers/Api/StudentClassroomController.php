@@ -41,7 +41,8 @@ class StudentClassroomController extends Controller
             })
             ->with(['creator', 'subject', 'strand'])
             ->withCount(['students as enrolled_count' => function ($query) {
-                $query->where('classroom_student.status', 'approved');
+                $query->where('classroom_student.status', 'approved')
+                      ->whereNull('users.deleted_at');
             }]);
 
             if (!empty($search)) {
@@ -145,7 +146,7 @@ class StudentClassroomController extends Controller
     public function show(Request $request, $id)
     {
         if (!$this->checkStudent($request)) {
-            return response()->json(['message' => 'Unauthorized Access.'], 403);
+            return response()->json(['message' => 'Unauthorized Access. Students only.'], 403);
         }
 
         try {
@@ -153,7 +154,8 @@ class StudentClassroomController extends Controller
             
             $classroom = Classroom::with(['creator', 'subject', 'strand'])
                 ->withCount(['students as enrolled_count' => function ($query) {
-                    $query->where('classroom_student.status', 'approved');
+                    $query->where('classroom_student.status', 'approved')
+                          ->whereNull('users.deleted_at');
                 }])
                 ->whereHas('students', function ($query) use ($studentId) {
                     $query->where('classroom_student.student_id', $studentId)
@@ -172,7 +174,7 @@ class StudentClassroomController extends Controller
     public function stream(Request $request, $id)
     {
         if (!$this->checkStudent($request)) {
-            return response()->json(['message' => 'Unauthorized Access.'], 403);
+            return response()->json(['message' => 'Unauthorized Access. Students only.'], 403);
         }
 
         try {
@@ -203,29 +205,20 @@ class StudentClassroomController extends Controller
                         ->where('attachable_id', $submission->id)
                         ->get();
 
-                    if ($submission->grade !== null) {
-                        $cw->student_status = 'GRADED';
-                    } elseif ($submission->status === 'pending' && $submission->teacher_feedback !== null) {
-                        $cw->student_status = 'RETURNED';
+                    if ($submission->status === 'graded') {
+                        $cw->student_status = 'graded';
                     } elseif ($submission->status === 'late_submission') {
-                        $cw->student_status = 'DONE LATE';
+                        $cw->student_status = 'late_submission';
+                    } elseif (!is_null($submission->teacher_feedback) && is_null($submission->grade)) {
+                        $cw->student_status = 'returned';
                     } else {
-                        $cw->student_status = 'DONE';
+                        $cw->student_status = 'turned_in';
                     }
                 } else {
-                    if ($cw->deadline) {
-                        $deadline = Carbon::parse($cw->deadline);
-                        $now = Carbon::now();
-
-                        if ($now->greaterThan($deadline)) {
-                            $cw->student_status = 'MISSING';
-                        } elseif ($now->diffInDays($deadline, false) >= 0 && $now->diffInDays($deadline, false) <= 2) {
-                            $cw->student_status = 'DUE SOON';
-                        } else {
-                            $cw->student_status = 'PENDING';
-                        }
+                    if ($cw->deadline && Carbon::now()->greaterThan(Carbon::parse($cw->deadline))) {
+                        $cw->student_status = 'missing';
                     } else {
-                        $cw->student_status = 'PENDING';
+                        $cw->student_status = 'pending';
                     }
                 }
                 
@@ -243,16 +236,19 @@ class StudentClassroomController extends Controller
     public function submitWork(Request $request, $classworkId)
     {
         if (!$this->checkStudent($request)) {
-            return response()->json(['message' => 'Unauthorized Access.'], 403);
+            return response()->json(['message' => 'Unauthorized Access. Students only.'], 403);
         }
 
-        try {
-            $request->validate([
-                'files.*' => 'file|max:51200' 
-            ]);
+        $request->validate([
+            'files' => 'nullable|array|max:5', 
+            'files.*' => 'file|max:51200|mimes:pdf,doc,docx,xls,xlsx,csv,ppt,pptx,png,jpg,jpeg,gif,mp4,avi,mov'
+        ]);
 
+        
+        $classwork = Classwork::findOrFail($classworkId);
+
+        try {
             $studentId = $request->user()->id;
-            $classwork = Classwork::findOrFail($classworkId);
 
             $existingSubmission = DB::table('classwork_submissions')
                 ->where('classwork_id', $classworkId)
@@ -272,7 +268,7 @@ class StudentClassroomController extends Controller
             DB::beginTransaction();
 
             if ($existingSubmission) {
-                if ($existingSubmission->status === 'pending' && $existingSubmission->teacher_feedback !== null) {
+                if ($existingSubmission->status === 'pending' && !is_null($existingSubmission->teacher_feedback)) {
                     $isResubmission = true;
                     
                     $files = File::where('attachable_type', 'classwork_submission')
@@ -370,12 +366,13 @@ class StudentClassroomController extends Controller
     public function unsubmitWork(Request $request, $classworkId)
     {
         if (!$this->checkStudent($request)) {
-            return response()->json(['message' => 'Unauthorized Access.'], 403);
+            return response()->json(['message' => 'Unauthorized Access. Students only.'], 403);
         }
+
+        $classwork = Classwork::findOrFail($classworkId);
 
         try {
             $studentId = $request->user()->id;
-            $classwork = Classwork::findOrFail($classworkId);
 
             if ($classwork->form_id) {
                 return response()->json(['message' => 'Cannot unsubmit a Quiz or Exam form.'], 400);
@@ -444,7 +441,7 @@ class StudentClassroomController extends Controller
     public function grades(Request $request, $id)
     {
         if (!$this->checkStudent($request)) {
-            return response()->json(['message' => 'Unauthorized Access.'], 403);
+            return response()->json(['message' => 'Unauthorized Access. Students only.'], 403);
         }
 
         try {
