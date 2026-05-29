@@ -10,12 +10,13 @@ use Illuminate\Support\Facades\DB;
 
 class ActivityLogController extends Controller
 {
-    // ACCESS CONTROL 
+    // security
     private function checkAdmin(Request $request)
     {
         return $request->user() && $request->user()->role === 'admin';
     }
 
+    // view all activity logs
     public function indexAdmin(Request $request) 
     {
         if (!$this->checkAdmin($request)) {
@@ -25,7 +26,6 @@ class ActivityLogController extends Controller
         try {
             $query = ActivityLog::with('user');
 
-            // SERVER-SIDE SEARCH 
             if ($request->has('search') && !empty($request->search)) {
                 $search = strtolower($request->search);
                 $query->where(function($q) use ($search) {
@@ -40,12 +40,9 @@ class ActivityLogController extends Controller
             }
 
             $query->orderBy('created_at', 'desc');
-
-            // SERVER-SIDE PAGINATION
             $entries = $request->has('entries') ? (int) $request->entries : 10;
             $paginatedLogs = $query->paginate($entries);
 
-            // I-format lang ang mga nasa current page para mabilis
             $formattedLogs = collect($paginatedLogs->items())->map(function ($log) {
                 return [
                     'id' => $log->id,
@@ -65,7 +62,7 @@ class ActivityLogController extends Controller
             ], 200);
 
         } catch (\Throwable $e) {
-            Log::error('ActivityLogController indexAdmin Error: ' . $e->getMessage());
+            Log::error('ActivityLogController indexAdmin Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'Failed to load activity logs.'], 500);
         }
     }
@@ -76,7 +73,6 @@ class ActivityLogController extends Controller
         try {
             $query = ActivityLog::with('user')->where('user_id', $request->user()->id);
 
-            // SERVER-SIDE SEARCH
             if ($request->has('search') && !empty($request->search)) {
                 $search = strtolower($request->search);
                 $query->where(function($q) use ($search) {
@@ -107,7 +103,7 @@ class ActivityLogController extends Controller
             ], 200);
 
         } catch (\Throwable $e) {
-            Log::error('ActivityLogController indexUser Error: ' . $e->getMessage());
+            Log::error('ActivityLogController indexUser Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'Failed to load activity logs.'], 500);
         }
     }

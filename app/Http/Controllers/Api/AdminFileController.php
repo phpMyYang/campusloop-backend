@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Log;
 
 class AdminFileController extends Controller
 {
-    // SECURITY FEATURE
+    // SECURITY
     private function checkAdmin(Request $request)
     {
         return $request->user() && $request->user()->role === 'admin';
@@ -31,7 +31,6 @@ class AdminFileController extends Controller
         try {
             $query = User::whereIn('role', ['teacher', 'student']);
 
-            // SERVER-SIDE SEARCH
             if ($request->has('search') && !empty($request->search)) {
                 $search = $request->search;
                 $query->where(function($q) use ($search) {
@@ -43,13 +42,10 @@ class AdminFileController extends Controller
             }
 
             $query->orderBy('role', 'asc')->orderBy('first_name', 'asc');
-
-            // PAGINATION (Fixed at 12 entries per page para sa grid)
             $entries = $request->has('entries') ? (int) $request->entries : 12;
             $paginatedUsers = $query->paginate($entries);
-
-            // KUNIN LANG ANG FILE COUNTS PARA SA MGA USERS NA NASA CURRENT PAGE
             $userIds = collect($paginatedUsers->items())->pluck('id');
+
             $fileCounts = File::whereIn('owner_id', $userIds)
                 ->selectRaw('owner_id, count(*) as total')
                 ->groupBy('owner_id')
@@ -64,7 +60,6 @@ class AdminFileController extends Controller
                 ];
             });
 
-            // Ipakita lang ang System Announcements folder kung tugma sa search
             $page = $paginatedUsers->currentPage();
             $searchKeyword = $request->search ?? '';
             $matchSystem = empty($searchKeyword) || stripos('system announcements', $searchKeyword) !== false;
@@ -84,8 +79,9 @@ class AdminFileController extends Controller
                 'total' => $paginatedUsers->total() + ($page === 1 && $matchSystem ? 1 : 0),
                 'last_page' => $paginatedUsers->lastPage()
             ], 200);
+
         } catch (\Exception $e) {
-            Log::error('AdminFileController folders Error: ' . $e->getMessage());
+            Log::error('AdminFileController folders Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An error occurred while fetching directories.'], 500);
         }
     }
@@ -98,19 +94,16 @@ class AdminFileController extends Controller
         }
 
         try {
-            // FOLDER TARGET
             if ($userId === 'system_announcements') {
                 $query = File::where('attachable_type', 'like', '%Announcement%');
             } else {
                 $query = File::where('owner_id', $userId);
             }
 
-            // SERVER-SIDE SEARCH (File Name)
             if ($request->has('search') && !empty($request->search)) {
                 $query->where('name', 'LIKE', "%{$request->search}%");
             }
 
-            // SERVER-SIDE FILTER (File Type)
             if ($request->has('type') && $request->type !== 'all') {
                 $type = $request->type;
                 if ($type === 'Announcement') {
@@ -127,15 +120,11 @@ class AdminFileController extends Controller
                 }
             }
 
-            // SERVER-SIDE SORTING
             $sortOrder = $request->has('sort') && $request->sort === 'oldest' ? 'asc' : 'desc';
             $query->orderBy('created_at', $sortOrder);
-
-            // PAGINATION (Fixed at 12 entries per page)
             $entries = $request->has('entries') ? (int) $request->entries : 12;
             $paginatedFiles = $query->paginate($entries);
 
-            // MAP THE RESULTS TO APPEND SOURCE LABEL
             $files = collect($paginatedFiles->items())->map(function ($file) {
                 $source = 'Other';
                 $type = $file->attachable_type ?? '';
@@ -159,8 +148,9 @@ class AdminFileController extends Controller
                 'total' => $paginatedFiles->total(),
                 'last_page' => $paginatedFiles->lastPage()
             ], 200);
+
         } catch (\Exception $e) {
-            Log::error('AdminFileController userFiles Error: ' . $e->getMessage());
+            Log::error('AdminFileController userFiles Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An error occurred while fetching files.'], 500);
         }
     }
@@ -219,7 +209,7 @@ class AdminFileController extends Controller
             return response()->download($zipPath)->deleteFileAfterSend(true);
             
         } catch (\Exception $e) {
-            Log::error('AdminFileController downloadZip Error: ' . $e->getMessage());
+            Log::error('AdminFileController downloadZip Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An error occurred while creating the ZIP file.'], 500);
         }
     }
@@ -239,17 +229,11 @@ class AdminFileController extends Controller
 
             DB::beginTransaction();
 
-            // KUNIN ANG FILES KASAMA ANG OWNER BAGO BURAHIN
             $files = File::with('owner')->whereIn('id', $request->file_ids)->get();
-
-            // Soft Delete
             File::whereIn('id', $request->file_ids)->delete();
-
-            // NOTIFICATION LOGIC 
             $actor = $request->user();
             $actorName = $actor->first_name . ' ' . $actor->last_name;
             $actorRole = ucfirst($actor->role);
-
             $notifications = [];
             $currentTime = now()->toDateTimeString();
 
@@ -259,14 +243,12 @@ class AdminFileController extends Controller
                 if ($owner) {
                     $ownerRole = strtolower($owner->role); 
                     
-                    // SMART LINKING: Kapag student, sa files tab. Kapag iba, sa recycle-bin.
                     if ($ownerRole === 'student') {
                         $link = "/student/files";
                     } else {
                         $link = "/{$ownerRole}/recycle-bin"; 
                     }
 
-                    // SMART DESCRIPTION
                     if ($actor->id === $owner->id) {
                         $description = "You deleted your file '{$file->name}'. It was moved to the Recycle Bin.";
                     } else {
@@ -285,7 +267,6 @@ class AdminFileController extends Controller
                 }
             }
 
-            // ISAHANG BULK INSERT
             if (!empty($notifications)) {
                 foreach (array_chunk($notifications, 500) as $chunk) {
                     DB::table('notifications')->insert($chunk);
@@ -302,9 +283,10 @@ class AdminFileController extends Controller
 
             DB::commit();
             return response()->json(['message' => 'Files moved to recycle bin.'], 200);
+
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('AdminFileController bulkDelete Error: ' . $e->getMessage());
+            Log::error('AdminFileController bulkDelete Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An error occurred while deleting files.'], 500);
         }
     }

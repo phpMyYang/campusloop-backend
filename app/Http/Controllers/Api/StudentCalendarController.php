@@ -12,7 +12,7 @@ use Carbon\Carbon;
 
 class StudentCalendarController extends Controller
 {
-    // RBAC
+    // security
     private function checkStudent(Request $request)
     {
         return $request->user() && $request->user()->role === 'student';
@@ -29,7 +29,6 @@ class StudentCalendarController extends Controller
             $studentId = $request->user()->id;
             $startDate = $request->input('start') ? Carbon::parse($request->input('start')) : now()->subMonths(3);
             $endDate = $request->input('end') ? Carbon::parse($request->input('end')) : now()->addMonths(6);
-
             $events = [];
 
             // ANNOUNCEMENTS
@@ -68,7 +67,7 @@ class StudentCalendarController extends Controller
                         'id' => 'cw_' . $cw->id,
                         'title' => $cw->title . ' (' . ($cw->classroom->subject->code ?? '') . ')',
                         'start' => $cw->deadline,
-                        'backgroundColor' => '#dc3545', // Red
+                        'backgroundColor' => '#dc3545',
                         'extendedProps' => [
                             'type' => 'Classwork',
                             'classroom_id' => $cw->classroom_id,
@@ -149,7 +148,7 @@ class StudentCalendarController extends Controller
 
             return response()->json($events, 200);
         } catch (\Exception $e) {
-            Log::error('Student Calendar Error: ' . $e->getMessage());
+            Log::error('Student Calendar Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while loading the calendar.'], 500);
         }
     }

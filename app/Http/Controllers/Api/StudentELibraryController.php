@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Log;
 
 class StudentELibraryController extends Controller
 {
-    //RBAC 
+    // security 
     private function checkStudent(Request $request)
     {
         return $request->user() && $request->user()->role === 'student';
@@ -41,7 +41,7 @@ class StudentELibraryController extends Controller
             return response()->json($libraries, 200);
 
         } catch (\Exception $e) {
-            Log::error('Student Fetch E-Library Error: ' . $e->getMessage());
+            Log::error('Student Fetch E-Library Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while fetching the E-Library.'], 500);
         }
     }

@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Log;
 
 class TeacherHomeController extends Controller
 {
-    // ROLE-BASED AUTHORIZATION HELPER
+    // security
     private function checkTeacher(Request $request)
     {
         return $request->user() && $request->user()->role === 'teacher';
@@ -64,12 +64,10 @@ class TeacherHomeController extends Controller
 
             // GET TOTAL CLASSROOMS
             $classroomsCount = Classroom::where('creator_id', $teacher->id)->count();
-
             // GET TODAY'S SCHEDULES
             $todayName = strtolower($now->format('l')); 
             $shortToday = strtolower($now->format('D')); 
             $todayDate = $now->format('Y-m-d');
-
             $todaySchedules = [];
 
             $deadlinesToday = Classwork::with('classroom.subject')
@@ -119,8 +117,9 @@ class TeacherHomeController extends Controller
                 'classrooms_count' => $classroomsCount,
                 'today_schedules' => $todaySchedules
             ], 200);
+
         } catch (\Exception $e) {
-            Log::error('Teacher Dashboard Error: ' . $e->getMessage());
+            Log::error('Teacher Dashboard Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while loading the dashboard.'], 500);
         }
     }
@@ -133,10 +132,9 @@ class TeacherHomeController extends Controller
         try {
             $request->validate([
                 'content' => 'required|string',
-                'parent_id' => 'nullable' // para safe ang request
+                'parent_id' => 'nullable' 
             ]);
 
-            // KUNIN ANG ANNOUNCEMENT
             $announcement = Announcement::findOrFail($announcementId);
             
             // I-SAVE ANG COMMENT GAMIT ANG RELATIONSHIP (Para iwas bug sa Polymorphic mapping)
@@ -146,12 +144,9 @@ class TeacherHomeController extends Controller
                 'parent_id' => $request->parent_id
             ]);
 
-            // KUNIN ANG DETAILS PARA SA NOTIFICATION
             $currentUser = $request->user();
             $fullName = $currentUser->first_name . ' ' . $currentUser->last_name;
             $role = ucfirst($currentUser->role); 
-            
-            // Paiksiin ang text para magkasya nang maganda sa notification dropdown
             $snippet = Str::limit($request->content, 30);
             $announcementTitle = Str::limit($announcement->title, 25);
 
@@ -173,7 +168,6 @@ class TeacherHomeController extends Controller
                 $logDescription = "Added a comment on the announcement '{$announcementTitle}'.";
             }
 
-            // NOTIFY ADMINS
             $admins = User::where('role', 'admin')->get();
             foreach ($admins as $admin) {
                 DB::table('notifications')->insert([
@@ -187,7 +181,6 @@ class TeacherHomeController extends Controller
                 ]);
             }
 
-            // ACTIVITY LOG
             ActivityLog::create([
                 'user_id' => $currentUser->id,
                 'action' => $logAction,
@@ -195,8 +188,9 @@ class TeacherHomeController extends Controller
             ]);
 
             return response()->json(['message' => 'Comment posted successfully', 'comment' => $comment], 201);
+
         } catch (\Exception $e) {
-            Log::error('Post Comment Error: ' . $e->getMessage());
+            Log::error('Post Comment Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An error occurred while posting your comment.'], 500);
         }
     }
@@ -210,8 +204,7 @@ class TeacherHomeController extends Controller
             $request->validate(['content' => 'required|string']);
             $comment = Comment::where('user_id', $request->user()->id)->findOrFail($id);
             $comment->update(['content' => $request->content]);
-
-            // ACTIVITY LOG 
+ 
             ActivityLog::create([
                 'user_id' => $request->user()->id,
                 'action' => 'Updated Comment',
@@ -219,8 +212,9 @@ class TeacherHomeController extends Controller
             ]);
 
             return response()->json(['message' => 'Comment updated successfully']);
+
         } catch (\Exception $e) {
-            Log::error('Update Comment Error: ' . $e->getMessage());
+            Log::error('Update Comment Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An error occurred while updating the comment.'], 500);
         }
     }
@@ -234,7 +228,6 @@ class TeacherHomeController extends Controller
             $comment = Comment::where('user_id', $request->user()->id)->findOrFail($id);
             $comment->forceDelete();
 
-            // ACTIVITY LOG 
             ActivityLog::create([
                 'user_id' => $request->user()->id,
                 'action' => 'Deleted Comment',
@@ -242,8 +235,9 @@ class TeacherHomeController extends Controller
             ]);
 
             return response()->json(['message' => 'Comment deleted successfully']);
+
         } catch (\Exception $e) {
-            Log::error('Delete Comment Error: ' . $e->getMessage());
+            Log::error('Delete Comment Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An error occurred while deleting the comment.'], 500);
         }
     }

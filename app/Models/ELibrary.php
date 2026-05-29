@@ -10,7 +10,7 @@ class ELibrary extends Model
 {
     use HasUuids, SoftDeletes;
 
-    // Optional: Tukuyin ang exact table name kung minsan nagkakamali ang Laravel pluralization sa "libraries"
+    // Tukuyin ang exact table name
     protected $table = 'e_libraries';
 
     protected $fillable = [

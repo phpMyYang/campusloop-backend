@@ -21,7 +21,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Turuan si Sanctum na gamitin ang bago nating UUID-ready model
+        // Turuan si Sanctum na gamitin ang bago UUID-ready model
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
     }
 }

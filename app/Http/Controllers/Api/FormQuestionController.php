@@ -13,12 +13,13 @@ use Illuminate\Validation\ValidationException;
 
 class FormQuestionController extends Controller
 {
+    // security
     private function checkTeacher(Request $request)
     {
         return $request->user() && $request->user()->role === 'teacher';
     }
 
-    // CREATE
+    // CREATE questions
     public function store(Request $request, $formId)
     {
         if (!$this->checkTeacher($request)) {
@@ -54,12 +55,12 @@ class FormQuestionController extends Controller
         } catch (ModelNotFoundException $e) {
             return response()->json(['message' => 'Form not found.'], 404);
         } catch (\Exception $e) {
-            Log::error('Create Form Question Error: ' . $e->getMessage());
+            Log::error('Create Form Question Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred.', 'debug_error' => $e->getMessage()], 500);
         }
     }
 
-    // UPDATE
+    // UPDATE questions
     public function update(Request $request, $id)
     {
         if (!$this->checkTeacher($request)) {
@@ -98,12 +99,12 @@ class FormQuestionController extends Controller
         } catch (ModelNotFoundException $e) {
             return response()->json(['message' => 'Question not found.'], 404);
         } catch (\Exception $e) {
-            Log::error('Update Form Question Error: ' . $e->getMessage());
+            Log::error('Update Form Question Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred.', 'debug_error' => $e->getMessage()], 500);
         }
     }
 
-    // DELETE
+    // DELETE question
     public function destroy(Request $request, $id)
     {
         if (!$this->checkTeacher($request)) {
@@ -129,7 +130,7 @@ class FormQuestionController extends Controller
         } catch (ModelNotFoundException $e) {
             return response()->json(['message' => 'Question not found.'], 404);
         } catch (\Exception $e) {
-            Log::error('Delete Form Question Error: ' . $e->getMessage());
+            Log::error('Delete Form Question Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred.', 'debug_error' => $e->getMessage()], 500);
         }
     }

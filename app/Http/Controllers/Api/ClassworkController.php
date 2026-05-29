@@ -19,7 +19,7 @@ use App\Mail\NewClassworkPosted;
 
 class ClassworkController extends Controller
 {
-    // role base checker
+    // security
     private function checkTeacher(Request $request)
     {
         return $request->user() && $request->user()->role === 'teacher';
@@ -47,8 +47,9 @@ class ClassworkController extends Controller
                 ->get();
                 
             return response()->json($classworks, 200);
+
         } catch (\Exception $e) {
-            Log::error('Fetch Classworks Error: ' . $e->getMessage());
+            Log::error('Fetch Classworks Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while fetching classworks.'], 500);
         }
     }
@@ -83,7 +84,7 @@ class ClassworkController extends Controller
                     $originalName = $uploadedFile->getClientOriginalName();
                     // System-generated hash para iwas File Name Exploits (Directory Traversal)
                     $path = $uploadedFile->store($destinationPath, 'public');
-
+                    // storage path
                     File::create([
                         'id' => (string) Str::uuid(),
                         'owner_id' => $user->id,
@@ -102,7 +103,6 @@ class ClassworkController extends Controller
             $classworkType = ucfirst($classwork->type);
             $subjectName = $classroom->subject ? $classroom->subject->description : 'the class';
             $approvedStudents = $classroom->students()->wherePivot('status', 'approved')->get();
-
             $notifications = [];
             $currentTime = now()->toDateTimeString();
             $frontendBaseUrl = env('FRONTEND_URL', 'http://localhost:5173'); 
@@ -147,8 +147,9 @@ class ClassworkController extends Controller
             ]);
 
             return response()->json(['message' => 'Classwork posted successfully!', 'classwork' => $classwork->load(['files', 'form'])], 201);
+
         } catch (\Exception $e) {
-            Log::error('Create Classwork Error: ' . $e->getMessage());
+            Log::error('Create Classwork Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'Failed to create classwork.'], 500);
         }
     }
@@ -178,7 +179,6 @@ class ClassworkController extends Controller
             $dataToUpdate = $validated;
             $dataToUpdate['link'] = $request->input('link', null);
             $dataToUpdate['form_id'] = $request->input('form_id', null);
-
             $classwork->update($dataToUpdate);
 
             if ($request->has('deleted_file_ids')) {
@@ -199,7 +199,7 @@ class ClassworkController extends Controller
                     $originalName = $uploadedFile->getClientOriginalName();
                     // System-generated hash para safe filename
                     $path = $uploadedFile->store($destinationPath, 'public');
-
+                    // storage path
                     File::create([
                         'id' => (string) Str::uuid(),
                         'owner_id' => $user->id,
@@ -220,8 +220,9 @@ class ClassworkController extends Controller
             ]);
 
             return response()->json(['message' => 'Classwork updated successfully!'], 200);
+
         } catch (\Exception $e) {
-            Log::error('Update Classwork Error: ' . $e->getMessage());
+            Log::error('Update Classwork Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'Failed to update classwork.'], 500);
         }
     }
@@ -239,8 +240,8 @@ class ClassworkController extends Controller
             $title = $classwork->title ?? 'Activity';
             $type = ucfirst($classwork->type);
             $subjectName = $classwork->classroom && $classwork->classroom->subject ? $classwork->classroom->subject->description : 'the class';
-
             $classwork->delete(); 
+
             ActivityLog::create([
                 'user_id' => $request->user()->id,
                 'action' => 'Deleted Classwork',
@@ -248,8 +249,9 @@ class ClassworkController extends Controller
             ]);
 
             return response()->json(['message' => 'Classwork moved to recycle bin.'], 200);
+            
         } catch (\Exception $e) {
-            Log::error('Delete Classwork Error: ' . $e->getMessage());
+            Log::error('Delete Classwork Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'Failed to delete classwork.'], 500);
         }
     }
@@ -300,8 +302,9 @@ class ClassworkController extends Controller
             }
 
             return response()->json($students, 200);
+
         } catch (\Exception $e) {
-            Log::error('Get Submissions Error: ' . $e->getMessage());
+            Log::error('Get Submissions Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'Failed to fetch submissions.'], 500);
         }
     }
@@ -342,16 +345,13 @@ class ClassworkController extends Controller
 
             $student = DB::table('users')->where('id', $studentId)->first();
             $studentName = $student ? $student->first_name . ' ' . $student->last_name : 'a student';
-            
             $classroom = DB::table('classrooms')->where('id', $classwork->classroom_id)->first();
             $subject = $classroom ? DB::table('subjects')->where('id', $classroom->subject_id)->first() : null;
-
             $teacherName = $request->user()->first_name . ' ' . $request->user()->last_name;
             $subjectName = $subject ? $subject->description : 'the class';
             $classworkType = ucfirst($classwork->type); 
             $classworkTitle = $classwork->title ?? $classwork->name ?? 'Activity';
             $sectionName = $classroom ? "({$classroom->section})" : "";
-            
             $scoreString = $classwork->points ? "{$request->grade}/{$classwork->points}" : "{$request->grade}";
 
             DB::table('notifications')->insert([
@@ -371,8 +371,9 @@ class ClassworkController extends Controller
             ]);
 
             return response()->json(['message' => 'Grade saved successfully!'], 200);
+
         } catch (\Exception $e) {
-            Log::error('Grade Submission Error: ' . $e->getMessage());
+            Log::error('Grade Submission Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'Failed to save grade. Exceeds max points limit.'], 500);
         }
     }
@@ -413,13 +414,11 @@ class ClassworkController extends Controller
             $studentName = $student ? $student->first_name . ' ' . $student->last_name : 'a student';
             $classroom = DB::table('classrooms')->where('id', $classwork->classroom_id)->first();
             $subject = $classroom ? DB::table('subjects')->where('id', $classroom->subject_id)->first() : null;
-
             $teacherName = $request->user()->first_name . ' ' . $request->user()->last_name;
             $subjectName = $subject ? $subject->description : 'the class';
             $classworkType = ucfirst($classwork->type); 
             $classworkTitle = $classwork->title ?? $classwork->name ?? 'Activity';
-            $sectionName = $classroom ? "({$classroom->section})" : "";
-            
+            $sectionName = $classroom ? "({$classroom->section})" : "";  
             $feedbackSnippet = Str::limit($request->feedback, 30);
 
             DB::table('notifications')->insert([
@@ -439,8 +438,9 @@ class ClassworkController extends Controller
             ]);
 
             return response()->json(['message' => 'Submission returned to student with feedback.'], 200);
+
         } catch (\Exception $e) {
-            Log::error('Return Submission Error: ' . $e->getMessage());
+            Log::error('Return Submission Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'Failed to return submission.'], 500);
         }
     }

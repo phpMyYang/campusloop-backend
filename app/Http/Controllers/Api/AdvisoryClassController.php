@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Log;
 
 class AdvisoryClassController extends Controller
 {
-    // SAFE ROLE-BASED AUTHORIZATION HELPER
+    // security
     private function checkTeacher(Request $request)
     {
         return $request->user() && $request->user()->role === 'teacher';
@@ -27,10 +27,8 @@ class AdvisoryClassController extends Controller
         try {
             $search = $request->input('search');
             $entries = $request->input('entries', 12);
-
             $query = AdvisoryClass::where('teacher_id', $request->user()->id);
 
-            // SERVER-SIDE SEARCH LOGIC
             if (!empty($search)) {
                 $query->where(function($q) use ($search) {
                     $q->where('section', 'like', '%' . $search . '%')
@@ -38,10 +36,8 @@ class AdvisoryClassController extends Controller
                 });
             }
 
-            // PAGINATION
             $classes = $query->orderBy('created_at', 'desc')->paginate($entries);
 
-            // APPEND STUDENTS COUNT SA BAWAT CLASS
             foreach($classes as $class) {
                 $class->students_count = DB::table('advisory_student')
                     ->join('users', 'advisory_student.student_id', '=', 'users.id')
@@ -58,7 +54,7 @@ class AdvisoryClassController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
-            Log::error('Fetch Advisory Classes Error: ' . $e->getMessage());
+            Log::error('Fetch Advisory Classes Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while fetching classes.'], 500);
         }
     }
@@ -89,8 +85,9 @@ class AdvisoryClassController extends Controller
             ]);
 
             return response()->json(['message' => 'Created successfully.', 'advisory' => $advisory], 201);
+
         } catch (\Exception $e) {
-            Log::error('Create Advisory Error: ' . $e->getMessage());
+            Log::error('Create Advisory Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while creating the class.'], 500);
         }
     }
@@ -117,8 +114,9 @@ class AdvisoryClassController extends Controller
             ]);
 
             return response()->json(['message' => 'Updated successfully.', 'advisory' => $advisory], 200);
+
         } catch (\Exception $e) {
-            Log::error('Update Advisory Error: ' . $e->getMessage());
+            Log::error('Update Advisory Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while updating the class.'], 500);
         }
     }
@@ -131,7 +129,6 @@ class AdvisoryClassController extends Controller
         try {
             $advisory = AdvisoryClass::where('teacher_id', $request->user()->id)->findOrFail($id);
             $section = $advisory->section;
-
             $advisory->delete();
 
             ActivityLog::create([
@@ -139,9 +136,11 @@ class AdvisoryClassController extends Controller
                 'action' => 'Deleted Advisory Class',
                 'description' => "Moved the advisory class {$section} to the recycle bin."
             ]);
+
             return response()->json(['message' => 'Moved to recycle bin.'], 200);
+
         } catch (\Exception $e) {
-            Log::error('Delete Advisory Error: ' . $e->getMessage());
+            Log::error('Delete Advisory Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while deleting the class.'], 500);
         }
     }
@@ -154,8 +153,8 @@ class AdvisoryClassController extends Controller
         try {
             $search = $request->input('search');
             $entries = $request->input('entries', 10);
-
             $advisory = AdvisoryClass::where('teacher_id', $request->user()->id)->findOrFail($id);
+
             $enrolledIds = DB::table('advisory_student')
                 ->join('users', 'advisory_student.student_id', '=', 'users.id')
                 ->where('advisory_student.advisory_class_id', $id)
@@ -164,7 +163,6 @@ class AdvisoryClassController extends Controller
             
             $query = User::whereIn('id', $enrolledIds)->where('role', 'student')->with('strand');
 
-            // SERVER-SIDE SEARCH LOGIC PARA SA MGA ESTUDYANTE
             if (!empty($search)) {
                 $query->where(function($q) use ($search) {
                     $q->where('first_name', 'like', '%' . $search . '%')
@@ -174,7 +172,6 @@ class AdvisoryClassController extends Controller
                 });
             }
 
-            // SMART PAGINATION
             $students = $query->orderBy('last_name', 'asc')->paginate($entries);
 
             return response()->json([
@@ -185,8 +182,9 @@ class AdvisoryClassController extends Controller
                 'total' => $students->total(),
                 'total_enrolled' => count($enrolledIds)
             ], 200);
+
         } catch (\Exception $e) {
-            Log::error('Show Advisory Error: ' . $e->getMessage());
+            Log::error('Show Advisory Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred.'], 500);
         }
     }
@@ -208,7 +206,6 @@ class AdvisoryClassController extends Controller
                          ->whereNotIn('id', $enrolledIds)
                          ->with('strand');
 
-            // SERVER-SIDE SEARCH LOGIC
             if (!empty($search)) {
                 $query->where(function($q) use ($search) {
                     $q->where('first_name', 'like', '%' . $search . '%')
@@ -217,7 +214,6 @@ class AdvisoryClassController extends Controller
                 });
             }
 
-            // PAGINATION
             $available = $query->orderBy('last_name', 'asc')->paginate($entries);
 
             return response()->json([
@@ -228,7 +224,7 @@ class AdvisoryClassController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
-            Log::error('Get Available Students Error: ' . $e->getMessage());
+            Log::error('Get Available Students Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred.'], 500);
         }
     }
@@ -240,7 +236,6 @@ class AdvisoryClassController extends Controller
 
         try {
             $request->validate(['student_ids' => 'required|array|max:100', 'student_ids.*' => 'exists:users,id']);
-            
             $advisory = AdvisoryClass::where('teacher_id', $request->user()->id)->findOrFail($id);
             
             $currentCount = DB::table('advisory_student')
@@ -258,6 +253,7 @@ class AdvisoryClassController extends Controller
             }
 
             $inserts = [];
+
             foreach ($request->student_ids as $studentId) {
                 $exists = DB::table('advisory_student')->where('advisory_class_id', $id)->where('student_id', $studentId)->exists();
                 if (!$exists) {
@@ -270,6 +266,7 @@ class AdvisoryClassController extends Controller
                     ];
                 }
             }
+
             if(count($inserts) > 0) {
                 DB::table('advisory_student')->insert($inserts);
 
@@ -281,9 +278,11 @@ class AdvisoryClassController extends Controller
                     'description' => "Enrolled {$enrolledCount} student(s) to the advisory class {$advisory->section}."
                 ]);
             }
+
             return response()->json(['message' => 'Students added.'], 200);
+
         } catch (\Exception $e) {
-            Log::error('Add Students Error: ' . $e->getMessage());
+            Log::error('Add Students Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred.'], 500);
         }
     }
@@ -297,7 +296,6 @@ class AdvisoryClassController extends Controller
             $advisory = AdvisoryClass::where('teacher_id', $request->user()->id)->findOrFail($classId);
             $student = User::find($studentId);
             $studentName = $student ? ($student->first_name . ' ' . $student->last_name) : 'a student';
-
             DB::table('advisory_student')->where('advisory_class_id', $classId)->where('student_id', $studentId)->delete();
 
             ActivityLog::create([
@@ -307,8 +305,9 @@ class AdvisoryClassController extends Controller
             ]);
 
             return response()->json(['message' => 'Student removed.'], 200);
+
         } catch (\Exception $e) {
-            Log::error('Remove Student Error: ' . $e->getMessage());
+            Log::error('Remove Student Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred.'], 500);
         }
     }
@@ -321,7 +320,6 @@ class AdvisoryClassController extends Controller
         try {
             $advisory = AdvisoryClass::where('teacher_id', $request->user()->id)->findOrFail($classId);
             $student = User::findOrFail($studentId); 
-
             $search = $request->input('search');
             $entries = $request->input('entries', 10);
             $syFilter = $request->input('syFilter', 'all');
@@ -382,8 +380,9 @@ class AdvisoryClassController extends Controller
                 'unique_sys' => [$advisory->school_year],
                 'allowed_subjects' => $allowedSubjects 
             ], 200);
+
         } catch (\Exception $e) {
-            Log::error('Get Student Grades Error: ' . $e->getMessage());
+            Log::error('Get Student Grades Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred.'], 500);
         }
     }
@@ -416,18 +415,14 @@ class AdvisoryClassController extends Controller
                 'updated_at' => now()
             ]);
 
-            // KUNIN ANG DETAILS NG TEACHER, STUDENT AT SECTION
             $currentUser = $request->user();
             $teacherName = $currentUser->first_name . ' ' . $currentUser->last_name;
             $student = DB::table('users')->where('id', $studentId)->first();
             $studentName = $student ? ($student->first_name . ' ' . $student->last_name) : 'a student';
             $section = $advisory->section;
-
-            // KUNIN ANG SUBJECT PARA SA LOG
             $subject = DB::table('subjects')->where('id', $request->subject_id)->first();
             $subjectName = $subject ? $subject->description : 'a subject';
 
-            // NOTIFY ADMINS WITH DYNAMIC DESCRIPTION
             $admins = User::where('role', 'admin')->get();
             foreach ($admins as $admin) {
                 DB::table('notifications')->insert([
@@ -448,9 +443,11 @@ class AdvisoryClassController extends Controller
             ]);
 
             $newGrade = DB::table('final_grades')->where('id', $gradeId)->first();
+
             return response()->json(['message' => 'Grade encoded.', 'grade' => $newGrade], 201);
+
         } catch (\Exception $e) {
-            Log::error('Store Student Grade Error: ' . $e->getMessage());
+            Log::error('Store Student Grade Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred.'], 500);
         }
     }
@@ -472,7 +469,7 @@ class AdvisoryClassController extends Controller
             DB::table('final_grades')
                 ->where('id', $gradeId)
                 ->where('student_id', $studentId)
-                ->where('teacher_id', $request->user()->id) // Extra safety net
+                ->where('teacher_id', $request->user()->id) 
                 ->whereNull('deleted_at')
                 ->update([
                 'subject_id' => $request->subject_id,
@@ -482,7 +479,6 @@ class AdvisoryClassController extends Controller
                 'updated_at' => now()
             ]);
 
-            // KUNIN ANG DETAILS PARA SA LOG
             $advisory = DB::table('advisory_classes')->where('id', $classId)->first();
             $student = DB::table('users')->where('id', $studentId)->first();
             $studentName = $student ? ($student->first_name . ' ' . $student->last_name) : 'a student';
@@ -497,8 +493,9 @@ class AdvisoryClassController extends Controller
             ]);
 
             return response()->json(['message' => 'Grade updated.'], 200);
+
         } catch (\Exception $e) {
-            Log::error('Update Student Grade Error: ' . $e->getMessage());
+            Log::error('Update Student Grade Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred.'], 500);
         }
     }

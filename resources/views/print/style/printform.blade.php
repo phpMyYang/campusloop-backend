@@ -18,7 +18,6 @@
         margin: 0; 
     }
     
-    /* PREMIUM LETTERHEAD */
     .letterhead 
     { 
         display: flex; 
@@ -168,7 +167,6 @@
         font-weight: bold; 
     }
     
-    /* LAYOUT FIX PARA SA MAHONG TANONG AT POINTS */
     .q-text 
     { 
         flex-grow: 1; 
@@ -228,7 +226,6 @@
         padding-bottom: 2px; 
     }
 
-    /* PRINT META FOOTER */
     .print-meta 
     { 
         margin-top: 50px; 

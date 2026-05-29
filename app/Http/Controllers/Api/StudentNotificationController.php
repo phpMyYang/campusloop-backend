@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Log;
 
 class StudentNotificationController extends Controller
 {
-    // RBAC
+    // security
     private function checkStudent(Request $request)
     {
         return $request->user() && $request->user()->role === 'student';
@@ -32,13 +32,11 @@ class StudentNotificationController extends Controller
 
             $query = DB::table('notifications')->where('user_id', $userId);
 
-            // SERVER-SIDE SEARCH
             if ($request->has('search') && !empty($request->search)) {
                 $search = strtolower($request->search);
                 $query->where('description', 'LIKE', "%{$search}%");
             }
 
-            // SERVER-SIDE PAGINATION
             $entries = $request->input('entries', 10);
             $notifications = $query->orderBy('created_at', 'desc')->paginate($entries);
 
@@ -50,7 +48,7 @@ class StudentNotificationController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
-            Log::error('Student Fetch Notifications Error: ' . $e->getMessage());
+            Log::error('Student Fetch Notifications Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred.'], 500);
         }
     }
@@ -69,8 +67,9 @@ class StudentNotificationController extends Controller
                 ->update(['is_read' => true, 'updated_at' => now()]);
 
             return response()->json(['message' => 'Marked as read'], 200);
+
         } catch (\Exception $e) {
-            Log::error('Student Mark Read Error: ' . $e->getMessage());
+            Log::error('Student Mark Read Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred.'], 500);
         }
     }
@@ -89,8 +88,9 @@ class StudentNotificationController extends Controller
                 ->update(['is_read' => true, 'updated_at' => now()]);
 
             return response()->json(['message' => 'All marked as read'], 200);
+
         } catch (\Exception $e) {
-            Log::error('Student Mark All Read Error: ' . $e->getMessage());
+            Log::error('Student Mark All Read Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred.'], 500);
         }
     }

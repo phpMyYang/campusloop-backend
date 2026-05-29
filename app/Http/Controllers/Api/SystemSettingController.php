@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\DB;
 
 class SystemSettingController extends Controller
 {
+    // security
     private function checkAdmin(Request $request)
     {
         return $request->user() && $request->user()->role === 'admin';
@@ -38,8 +39,9 @@ class SystemSettingController extends Controller
             });
 
             return response()->json($activeSetting, 200);
+
         } catch (\Exception $e) {
-            Log::error('SystemSettingController index Error: ' . $e->getMessage());
+            Log::error('SystemSettingController index Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while fetching settings.'], 500);
         }
     }
@@ -80,8 +82,9 @@ class SystemSettingController extends Controller
                     'message' => 'School Settings successfully updated!',
                     'setting' => $newSetting
                 ], 200);
+
         } catch (\Exception $e) {
-            Log::error('SystemSettingController store Error: ' . $e->getMessage());
+            Log::error('SystemSettingController store Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while saving the settings.'], 500);
         }
     }
@@ -109,8 +112,9 @@ class SystemSettingController extends Controller
             Cache::forget('active_system_setting'); 
 
             return response()->json(['message' => 'School settings have been completely reset.'], 200);
+
         } catch (\Exception $e) {
-            Log::error('SystemSettingController reset Error: ' . $e->getMessage());
+            Log::error('SystemSettingController reset Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while resetting settings.'], 500);
         }
     }
@@ -189,10 +193,11 @@ class SystemSettingController extends Controller
             }
 
             $pdf = Pdf::loadView('print.report', $data);
+
             return $pdf->download('HolyFace_System_Report_'.date('Y-m-d').'.pdf');
 
         } catch (\Exception $e) {
-            Log::error('SystemSettingController generateReport Error: ' . $e->getMessage());
+            Log::error('SystemSettingController generateReport Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while generating the report.'], 500);
         }
     }
@@ -226,8 +231,8 @@ class SystemSettingController extends Controller
             ]);
 
             Cache::forget('active_system_setting'); 
-            DB::commit(); 
 
+            DB::commit(); 
             return response()->json([
                 'message' => "Maintenance mode successfully $status.",
                 'setting' => $activeSetting
@@ -235,7 +240,7 @@ class SystemSettingController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack(); 
-            Log::error('SystemSettingController toggleMaintenance Error: ' . $e->getMessage());
+            Log::error('SystemSettingController toggleMaintenance Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while toggling maintenance mode.'], 500);
         }
     }
