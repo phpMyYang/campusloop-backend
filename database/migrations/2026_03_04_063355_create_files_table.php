@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('path'); 
             $table->string('file_extension'); 
             $table->integer('file_size'); 
-            $table->nullableUuidMorphs('attachable'); // Best practice para sa polymorphic UUIDs (creates attachable_type at attachable_id) 
+            $table->nullableUuidMorphs('attachable'); // para sa polymorphic UUIDs (creates attachable_type at attachable_id) 
             $table->timestamps(); 
             $table->softDeletes(); 
         });

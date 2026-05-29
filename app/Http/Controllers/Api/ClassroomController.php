@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class ClassroomController extends Controller
 {
-    // RBAC HELPER
+    // security
     private function checkTeacher(Request $request)
     {
         return $request->user() && $request->user()->role === 'teacher';
@@ -50,8 +50,9 @@ class ClassroomController extends Controller
             $classrooms = $query->orderBy('created_at', 'desc')->paginate($entries);
 
             return response()->json($classrooms, 200);
+
         } catch (\Exception $e) {
-            Log::error('Fetch Classrooms Error: ' . $e->getMessage());
+            Log::error('Fetch Classrooms Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while fetching classrooms.'], 500);
         }
     }
@@ -108,10 +109,11 @@ class ClassroomController extends Controller
             ]);
 
             return response()->json(['message' => 'Classroom created successfully!', 'code' => $code], 201);
+
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json(['message' => $e->getMessage(), 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
-            Log::error('Create Classroom Error: ' . $e->getMessage());
+            Log::error('Create Classroom Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while creating the classroom.'], 500);
         }
     }
@@ -131,10 +133,11 @@ class ClassroomController extends Controller
                 ->findOrFail($id);
 
             return response()->json($classroom, 200);
+
         } catch (ModelNotFoundException $e) {
             return response()->json(['message' => 'Classroom not found.'], 404);
         } catch (\Exception $e) {
-            Log::error('Show Classroom Error: ' . $e->getMessage());
+            Log::error('Show Classroom Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred.'], 500);
         }
     }
@@ -146,6 +149,7 @@ class ClassroomController extends Controller
 
         try {
             $classroom = Classroom::where('creator_id', $request->user()->id)->findOrFail($id);
+
             $validated = $request->validate([
                 'section' => 'required|string|max:255',
                 'strand_id' => 'required|uuid|exists:strands,id',
@@ -171,12 +175,13 @@ class ClassroomController extends Controller
             ]);
 
             return response()->json(['message' => 'Classroom updated successfully!'], 200);
+
         } catch (ModelNotFoundException $e) {
             return response()->json(['message' => 'Classroom not found.'], 404);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json(['message' => $e->getMessage(), 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
-            Log::error('Update Classroom Error: ' . $e->getMessage());
+            Log::error('Update Classroom Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while updating the classroom.'], 500);
         }
     }
@@ -199,10 +204,11 @@ class ClassroomController extends Controller
             ]);
 
             return response()->json(['message' => 'Classroom moved to recycle bin.'], 200);
+
         } catch (ModelNotFoundException $e) {
             return response()->json(['message' => 'Classroom not found.'], 404);
         } catch (\Exception $e) {
-            Log::error('Delete Classroom Error: ' . $e->getMessage());
+            Log::error('Delete Classroom Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while deleting the classroom.'], 500);
         }
     }

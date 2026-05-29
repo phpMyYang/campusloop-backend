@@ -12,10 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('announcements', function (Blueprint $table) {
-            // Tatanggalin natin yung lumang status dahil dynamic na siya sa Model natin ngayon
+            // Tatanggalin yung lumang status dahil dynamic na sa Model
             $table->dropColumn('status');
             
-            // Idadagdag natin ang mga bagong scheduling columns
+            // Idadagdag ang mga bagong scheduling columns
             $table->timestamp('publish_from')->nullable()->after('link');
             $table->timestamp('valid_until')->nullable()->after('publish_from');
         });
@@ -27,7 +27,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('announcements', function (Blueprint $table) {
-            // Ito ang ibabalik kung sakaling mag php artisan migrate:rollback tayo
+            // Ito ang ibabalik kung sakaling mag php artisan migrate:rollback
             $table->string('status')->default('active')->after('link');
             $table->dropColumn(['publish_from', 'valid_until']);
         });

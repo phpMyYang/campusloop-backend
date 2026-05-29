@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Log;
 
 class AdminGradeController extends Controller
 {
-    // Access Control
+    // security
     private function checkAdmin(Request $request)
     {
         return $request->user() && $request->user()->role === 'admin';
@@ -36,7 +36,6 @@ class AdminGradeController extends Controller
                       ->whereColumn('final_grades.student_id', 'users.id');
                 });
 
-            // SERVER-SIDE SEARCH (Pangalan o LRN)
             if ($request->has('search') && !empty($request->search)) {
                 $search = $request->search;
                 $query->where(function($q) use ($search) {
@@ -47,21 +46,16 @@ class AdminGradeController extends Controller
                 });
             }
 
-            // SERVER-SIDE STRAND FILTER
             if ($request->has('strand') && $request->strand !== 'all') {
                 $query->where('strand_id', $request->strand);
             }
 
-            // SERVER-SIDE GENDER FILTER
             if ($request->has('gender') && $request->gender !== 'all') {
                 $query->where('gender', $request->gender);
             }
 
-            // SERVER-SIDE SORTING
             $sortOrder = $request->has('sort') && $request->sort === 'za' ? 'desc' : 'asc';
             $query->orderBy('last_name', $sortOrder)->orderBy('first_name', $sortOrder);
-
-            // PAGINATION
             $entries = $request->has('entries') ? (int) $request->entries : 10;
             $paginatedStudents = $query->paginate($entries);
 
@@ -77,8 +71,9 @@ class AdminGradeController extends Controller
                 'total' => $paginatedStudents->total(),
                 'last_page' => $paginatedStudents->lastPage()
             ], 200);
+
         } catch (\Exception $e) {
-            Log::error('AdminGradeController index Error: ' . $e->getMessage());
+            Log::error('AdminGradeController index Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while fetching student grades.'], 500);
         }
     }
@@ -93,22 +88,23 @@ class AdminGradeController extends Controller
         try {
             $grades = DB::table('final_grades')
                 ->join('subjects', 'final_grades.subject_id', '=', 'subjects.id')
-                ->join('users', 'final_grades.teacher_id', '=', 'users.id') // JOIN PARA SA TEACHER
+                ->join('users', 'final_grades.teacher_id', '=', 'users.id') 
                 ->where('final_grades.student_id', $studentId)
                 ->whereNull('final_grades.deleted_at')
                 ->select(
                     'final_grades.*', 
                     'subjects.code as subject_code', 
                     'subjects.description as subject_description',
-                    DB::raw("CONCAT(users.first_name, ' ', users.last_name) as teacher_name") // KUNIN ANG PANGALAN
+                    DB::raw("CONCAT(users.first_name, ' ', users.last_name) as teacher_name") 
                 )
                 ->orderBy('final_grades.school_year', 'desc')
                 ->orderBy('final_grades.semester', 'asc')
                 ->get();
 
             return response()->json($grades, 200);
+
         } catch (\Exception $e) {
-            Log::error('AdminGradeController showStudentGrades Error: ' . $e->getMessage());
+            Log::error('AdminGradeController showStudentGrades Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while fetching specific grades.'], 500);
         }
     }
@@ -124,6 +120,7 @@ class AdminGradeController extends Controller
             $request->validate(['grade_id' => 'required|uuid']);
 
             DB::beginTransaction();
+
             $grade = FinalGrade::findOrFail($request->grade_id);
             
             $grade->update([
@@ -132,12 +129,9 @@ class AdminGradeController extends Controller
             ]);
 
             $student = User::findOrFail($grade->student_id);
-
-            // KUNIN ANG SUBJECT DESCRIPTION
             $subject = DB::table('subjects')->where('id', $grade->subject_id)->first();
             $subjectName = $subject ? $subject->description : 'Subject';
 
-            // THE FOOLPROOF QUERY FOR NOTIFICATIONS
             $advisoryClass = DB::table('advisory_classes')
                 ->join('advisory_student', 'advisory_classes.id', '=', 'advisory_student.advisory_class_id')
                 ->where('advisory_student.student_id', $grade->student_id)
@@ -149,11 +143,9 @@ class AdminGradeController extends Controller
                 
             $sectionName = $advisoryClass ? "({$advisoryClass->section})" : "";
             $link = $advisoryClass ? "/teacher/advisory/{$advisoryClass->class_id}" : "/teacher/advisory";
-            
             $currentTime = now()->toDateTimeString();
             $semester = $grade->semester; 
 
-            // Notify teacher (Approved)
             DB::table('notifications')->insert([
                 'id' => Str::uuid()->toString(),
                 'user_id' => $grade->teacher_id,
@@ -164,7 +156,6 @@ class AdminGradeController extends Controller
                 'updated_at' => $currentTime,
             ]);
 
-            // Notify student (Approved)
             DB::table('notifications')->insert([
                 'id' => Str::uuid()->toString(),
                 'user_id' => $grade->student_id,
@@ -183,9 +174,10 @@ class AdminGradeController extends Controller
 
             DB::commit();
             return response()->json(['message' => 'Grade approved and locked.'], 200);
+
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('AdminGradeController approveGrade Error: ' . $e->getMessage());
+            Log::error('AdminGradeController approveGrade Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while approving the grade.'], 500);
         }
     }
@@ -204,6 +196,7 @@ class AdminGradeController extends Controller
             ]);
 
             DB::beginTransaction();
+
             $grade = FinalGrade::findOrFail($request->grade_id);
             
             $grade->update([
@@ -212,11 +205,9 @@ class AdminGradeController extends Controller
             ]);
 
             $student = User::findOrFail($grade->student_id);
-
             $subject = DB::table('subjects')->where('id', $grade->subject_id)->first();
             $subjectName = $subject ? $subject->description : 'Subject';
 
-            // THE FOOLPROOF QUERY FOR NOTIFICATIONS
             $advisoryClass = DB::table('advisory_classes')
                 ->join('advisory_student', 'advisory_classes.id', '=', 'advisory_student.advisory_class_id')
                 ->where('advisory_student.student_id', $grade->student_id)
@@ -229,7 +220,6 @@ class AdminGradeController extends Controller
             $sectionName = $advisoryClass ? "({$advisoryClass->section})" : "";
             $link = $advisoryClass ? "/teacher/advisory/{$advisoryClass->class_id}" : "/teacher/advisory";
 
-            // Notify teacher (Declined)
             DB::table('notifications')->insert([
                 'id' => Str::uuid()->toString(),
                 'user_id' => $grade->teacher_id,
@@ -248,9 +238,10 @@ class AdminGradeController extends Controller
 
             DB::commit();
             return response()->json(['message' => 'Grade declined and returned to teacher.'], 200);
+
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('AdminGradeController declineGrade Error: ' . $e->getMessage());
+            Log::error('AdminGradeController declineGrade Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while declining the grade.'], 500);
         }
     }

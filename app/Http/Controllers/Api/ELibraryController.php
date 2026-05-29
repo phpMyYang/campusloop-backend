@@ -11,10 +11,12 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log; 
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB; 
+use Illuminate\Validation\ValidationException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class ELibraryController extends Controller
 {
-    // RBAC 
+    // security
     private function checkTeacher(Request $request)
     {
         return $request->user() && $request->user()->role === 'teacher';
@@ -48,8 +50,9 @@ class ELibraryController extends Controller
             $libraries = $query->orderBy('created_at', 'desc')->paginate($entries);
 
             return response()->json($libraries, 200);
+
         } catch (\Exception $e) {
-            Log::error('Fetch ELibrary Error: ' . $e->getMessage());
+            Log::error('Fetch ELibrary Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'Failed to fetch library resources.'], 500);
         }
     }
@@ -93,8 +96,8 @@ class ELibraryController extends Controller
             $currentUser = $request->user();
             $teacherName = $currentUser->first_name . ' ' . $currentUser->last_name;
             $shortTitle = Str::limit($request->title, 30);
-
             $admins = User::where('role', 'admin')->get();
+
             foreach ($admins as $admin) {
                 DB::table('notifications')->insert([
                     'id' => Str::uuid()->toString(),
@@ -115,10 +118,10 @@ class ELibraryController extends Controller
 
             return response()->json(['message' => 'Uploaded to Global Library. Pending Admin Approval.'], 201);
 
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation Error', 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
-            Log::error('Create ELibrary Error: ' . $e->getMessage());
+            Log::error('Create ELibrary Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while saving.'], 500);
         }
     }
@@ -179,12 +182,12 @@ class ELibraryController extends Controller
 
             return response()->json(['message' => 'Changes saved and re-submitted for approval.'], 200);
 
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation Error', 'errors' => $e->errors()], 422);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        } catch (ModelNotFoundException $e) {
             return response()->json(['message' => 'Resource not found.'], 404);
         } catch (\Exception $e) {
-            Log::error('Update ELibrary Error: ' . $e->getMessage());
+            Log::error('Update ELibrary Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while updating.'], 500);
         }
     }
@@ -209,10 +212,10 @@ class ELibraryController extends Controller
             
             return response()->json(['message' => 'Moved to Recycle Bin.'], 200);
 
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+        } catch (ModelNotFoundException $e) {
             return response()->json(['message' => 'Resource not found.'], 404);
         } catch (\Exception $e) {
-            Log::error('Delete ELibrary Error: ' . $e->getMessage());
+            Log::error('Delete ELibrary Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while deleting.'], 500);
         }
     }

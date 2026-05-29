@@ -22,13 +22,13 @@ use Illuminate\Pagination\LengthAwarePaginator;
 
 class AdminRecycleBinController extends Controller
 {
-    // Access Control
+    // security
     private function checkAdmin(Request $request)
     {
         return $request->user() && $request->user()->role === 'admin';
     }
 
-    // View
+    // View all junks
     public function index(Request $request)
     {
         if (!$this->checkAdmin($request)) {
@@ -96,10 +96,8 @@ class AdminRecycleBinController extends Controller
                 $trashedItems->push($this->formatItem($item->id, $item->section . ' (' . $item->school_year . ')', 'Advisory Classes', $owner, $item->deleted_at));
             });
 
-            // SORTING
             $sortedItems = $trashedItems->sortByDesc('deleted_at')->values();
 
-            // SERVER-SIDE SEARCHING
             if ($request->filled('search')) {
                 $search = strtolower($request->search);
                 $sortedItems = $sortedItems->filter(function ($item) use ($search) {
@@ -109,12 +107,10 @@ class AdminRecycleBinController extends Controller
                 })->values();
             }
 
-            // SERVER-SIDE CATEGORY FILTERING
             if ($request->filled('category') && $request->category !== 'all') {
                 $sortedItems = $sortedItems->where('type', $request->category)->values();
             }
 
-            // PAGINATION LOGIC
             $page = $request->input('page', 1);
             $perPage = $request->input('entries', 10);
             $total = $sortedItems->count();
@@ -126,7 +122,6 @@ class AdminRecycleBinController extends Controller
                 $page
             );
 
-            // Static Categories para sa Dropdown sa Frontend
             $categories = [
                 'Users', 'Classrooms', 'Classworks', 'Forms', 'Files', 
                 'Announcements', 'E-Libraries', 'Strands', 'Subjects', 'Advisory Classes'
@@ -140,7 +135,7 @@ class AdminRecycleBinController extends Controller
             ], 200);
 
         } catch (\Throwable $e) {
-            Log::error('AdminRecycleBinController index Error: ' . $e->getMessage());
+            Log::error('AdminRecycleBinController index Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'Failed to load recycle bin data.'], 500);
         }
     }
@@ -183,7 +178,6 @@ class AdminRecycleBinController extends Controller
         }
 
         try {
-            // ARRAY LIMIT & VALIDATION
             $request->validate([
                 'items' => 'required|array|max:100',
                 'items.*.id' => 'required',
@@ -216,9 +210,10 @@ class AdminRecycleBinController extends Controller
 
             DB::commit();
             return response()->json(['message' => 'Items successfully restored to their original locations.']);
+
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('AdminRecycleBinController restore Error: ' . $e->getMessage());
+            Log::error('AdminRecycleBinController restore Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while restoring items.'], 500);
         }
     }
@@ -231,7 +226,6 @@ class AdminRecycleBinController extends Controller
         }
 
         try {
-            // ARRAY LIMIT & VALIDATION
             $request->validate([
                 'items' => 'required|array|max:100',
                 'items.*.id' => 'required',
@@ -248,7 +242,7 @@ class AdminRecycleBinController extends Controller
                 if ($model) {
                     $record = $model->withTrashed()->find($item['id']);
                     if ($record) {
-                        $record->forceDelete(); // Binubura na talaga sa database
+                        $record->forceDelete(); 
                         $deletedCount++;
                     }
                 }
@@ -264,9 +258,10 @@ class AdminRecycleBinController extends Controller
 
             DB::commit();
             return response()->json(['message' => 'Items permanently deleted from the database.']);
+
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('AdminRecycleBinController forceDelete Error: ' . $e->getMessage());
+            Log::error('AdminRecycleBinController forceDelete Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while permanently deleting items.'], 500);
         }
     }

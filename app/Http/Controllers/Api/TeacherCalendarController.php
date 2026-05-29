@@ -12,7 +12,7 @@ use Carbon\Carbon;
 
 class TeacherCalendarController extends Controller
 {
-    // RBAC
+    // security
     private function checkTeacher(Request $request)
     {
         return $request->user() && $request->user()->role === 'teacher';
@@ -21,7 +21,6 @@ class TeacherCalendarController extends Controller
     // View Events
     public function events(Request $request)
     {
-        // 
         if (!$this->checkTeacher($request)) {
             return response()->json(['message' => 'Unauthorized Access. Teachers only.'], 403);
         }
@@ -30,7 +29,6 @@ class TeacherCalendarController extends Controller
             $teacherId = $request->user()->id;
             $startDate = $request->input('start') ? Carbon::parse($request->input('start')) : now()->subMonths(3);
             $endDate = $request->input('end') ? Carbon::parse($request->input('end')) : now()->addMonths(6);
-
             $events = [];
 
             // GET SYSTEM ANNOUNCEMENTS (Published or Done)
@@ -78,7 +76,6 @@ class TeacherCalendarController extends Controller
                     ];
                 })->toArray();
 
-            // EXACT FORMAT PARSER PARA SA CLASSROOM SCHEDULES
             $dayMap = [
                 'sunday' => 0, 'sun' => 0,
                 'monday' => 1, 'mon' => 1,
@@ -143,8 +140,9 @@ class TeacherCalendarController extends Controller
             $events = array_merge($announcements, $classworks, $classroomEvents);
 
             return response()->json($events, 200);
+
         } catch (\Exception $e) {
-            Log::error('Teacher Calendar Error: ' . $e->getMessage());
+            Log::error('Teacher Calendar Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while loading the calendar.'], 500);
         }
     }

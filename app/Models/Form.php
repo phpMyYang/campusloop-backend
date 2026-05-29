@@ -25,7 +25,6 @@ class Form extends Model
         return $this->belongsTo(User::class, 'creator_id');
     }
 
-    // Naka-ready na para sa next batch natin!
     public function questions()
     {
         return $this->hasMany(FormQuestion::class); 

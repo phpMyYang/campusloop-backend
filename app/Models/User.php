@@ -64,7 +64,7 @@ class User extends Authenticatable
         return $this->hasMany(AdvisoryClass::class, 'teacher_id');
     }
 
-    // Idagdag ito sa ibaba ng iba mo pang relationships
+    // relationships
     public function submissions()
     {
         return $this->hasMany(ClassworkSubmission::class, 'student_id');

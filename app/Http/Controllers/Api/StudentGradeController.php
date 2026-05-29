@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 
 class StudentGradeController extends Controller
 {
-    // RBAC 
+    // security
     private function checkStudent(Request $request)
     {
         return $request->user() && $request->user()->role === 'student';
@@ -93,7 +93,7 @@ class StudentGradeController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
-            Log::error('Student Grades Fetch Error: ' . $e->getMessage());
+            Log::error('Student Grades Fetch Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while fetching your grades.'], 500);
         }
     }

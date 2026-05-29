@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Log;
 
 class ClassroomStudentController extends Controller
 {
-    // role access
+    // security
     private function checkTeacher(Request $request)
     {
         return $request->user() && $request->user()->role === 'teacher';
@@ -53,8 +53,9 @@ class ClassroomStudentController extends Controller
             $students = $query->orderBy('last_name', 'asc')->paginate($entries);
 
             return response()->json($students, 200);
+
         } catch (\Exception $e) {
-            Log::error('Fetch Classroom Students Error: ' . $e->getMessage());
+            Log::error('Fetch Classroom Students Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'Unauthorized or Classroom not found.'], 403);
         }
     }
@@ -79,11 +80,9 @@ class ClassroomStudentController extends Controller
                 $classroom->students()->updateExistingPivot($studentId, ['status' => 'approved']);
             }
 
-            // NOTIFICATION LOGIC
             $teacherName = $request->user()->first_name . ' ' . $request->user()->last_name;
             $subjectName = $classroom->subject ? $classroom->subject->description : 'the class';
             $sectionName = $classroom->section;
-
             $notifications = [];
             $currentTime = now()->toDateTimeString();
 
@@ -107,7 +106,6 @@ class ClassroomStudentController extends Controller
 
             $count = count($request->student_ids);
 
-            // ACTIVITY LOG
             if ($count > 0) {
                 ActivityLog::create([
                     'user_id' => $request->user()->id,
@@ -116,12 +114,12 @@ class ClassroomStudentController extends Controller
                 ]);
             }
 
-            DB::commit(); // I-save kung successful lahat
+            DB::commit(); 
             return response()->json(['message' => 'Students successfully enrolled.'], 200);
 
         } catch (\Exception $e) {
             DB::rollBack(); 
-            Log::error('Approve Student Error: ' . $e->getMessage());
+            Log::error('Approve Student Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while approving students.'], 500);
         }
     }
@@ -141,10 +139,8 @@ class ClassroomStudentController extends Controller
         try {
             $classroom = Classroom::with('subject')->where('creator_id', $request->user()->id)->findOrFail($classroomId);
             DB::beginTransaction();
-            // Kunin muna ang info bago burahin para sa tamang notification message
             $studentsToNotify = $classroom->students()->whereIn('student_id', $request->student_ids)->get();
             $classroom->students()->detach($request->student_ids);
-            // NOTIFICATION LOGIC 
             $teacherName = $request->user()->first_name . ' ' . $request->user()->last_name;
             $subjectName = $classroom->subject ? $classroom->subject->description : 'the class';
             $sectionName = $classroom->section;
@@ -192,7 +188,7 @@ class ClassroomStudentController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Remove Student Error: ' . $e->getMessage());
+            Log::error('Remove Student Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while processing removal.'], 500);
         }
     }

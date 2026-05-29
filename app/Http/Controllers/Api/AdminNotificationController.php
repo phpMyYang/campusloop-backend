@@ -10,13 +10,13 @@ use Illuminate\Support\Str;
 
 class AdminNotificationController extends Controller
 {
-    // access control
+    // security
     private function checkAdmin(Request $request)
     {
         return $request->user() && $request->user()->role === 'admin';
     }
 
-    // view
+    // view admin notification
     public function index(Request $request)
     {
         if (!$this->checkAdmin($request)) {
@@ -27,13 +27,11 @@ class AdminNotificationController extends Controller
             $query = DB::table('notifications')
                 ->where('user_id', $request->user()->id);
 
-            // SERVER-SIDE SEARCH LOGIC
             if ($request->has('search') && !empty($request->search)) {
                 $search = strtolower($request->search);
                 $query->where('description', 'LIKE', "%{$search}%");
             }
 
-            // DYNAMIC PAGINATION
             $entries = $request->has('entries') ? (int) $request->entries : 10;
             $notifications = $query->orderBy('created_at', 'desc')->paginate($entries);
 
@@ -50,7 +48,7 @@ class AdminNotificationController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
-            Log::error('AdminNotificationController index Error: ' . $e->getMessage());
+            Log::error('AdminNotificationController index Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while fetching notifications.'], 500);
         }
     }
@@ -69,8 +67,9 @@ class AdminNotificationController extends Controller
                 ->update(['is_read' => true, 'updated_at' => now()]);
 
             return response()->json(['message' => 'Marked as read'], 200);
+
         } catch (\Exception $e) {
-            Log::error('AdminNotificationController markAsRead Error: ' . $e->getMessage());
+            Log::error('AdminNotificationController markAsRead Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while updating notification.'], 500);
         }
     }
@@ -89,8 +88,9 @@ class AdminNotificationController extends Controller
                 ->update(['is_read' => true, 'updated_at' => now()]);
 
             return response()->json(['message' => 'All marked as read'], 200);
+
         } catch (\Exception $e) {
-            Log::error('AdminNotificationController markAllAsRead Error: ' . $e->getMessage());
+            Log::error('AdminNotificationController markAllAsRead Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while updating notifications.'], 500);
         }
     }

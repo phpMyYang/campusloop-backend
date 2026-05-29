@@ -17,7 +17,7 @@ use Carbon\Carbon;
 
 class StudentClassroomController extends Controller
 {
-    // RBAC 
+    // security
     private function checkStudent(Request $request)
     {
         return $request->user() && $request->user()->role === 'student';
@@ -62,8 +62,9 @@ class StudentClassroomController extends Controller
             $classrooms = $query->orderBy('created_at', 'desc')->paginate($entries);
 
             return response()->json($classrooms, 200);
+
         } catch (\Exception $e) {
-            Log::error('Student Fetch Classrooms Error: ' . $e->getMessage());
+            Log::error('Student Fetch Classrooms Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while fetching classrooms.'], 500);
         }
     }
@@ -81,7 +82,6 @@ class StudentClassroomController extends Controller
             ]);
 
             $studentId = $request->user()->id;
-            
             $classroom = Classroom::where('code', $request->code)->first();
 
             if (!$classroom) {
@@ -100,7 +100,6 @@ class StudentClassroomController extends Controller
                 return response()->json(['message' => 'You are already enrolled in this classroom.'], 400);
             }
 
-            // DB TRANSACTION PARA SA DATA CONSISTENCY
             DB::beginTransaction();
 
             DB::table('classroom_student')->insert([
@@ -132,12 +131,11 @@ class StudentClassroomController extends Controller
             ]);
 
             DB::commit(); 
-
             return response()->json(['message' => 'Join request sent! Please wait for your teacher to approve.'], 200);
 
         } catch (\Exception $e) {
             DB::rollBack(); 
-            Log::error('Student Join Classroom Error: ' . $e->getMessage());
+            Log::error('Student Join Classroom Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while joining.'], 500);
         }
     }
@@ -164,8 +162,9 @@ class StudentClassroomController extends Controller
                 ->findOrFail($id);
 
             return response()->json($classroom, 200);
+
         } catch (\Exception $e) {
-            Log::error('Student Show Classroom Error: ' . $e->getMessage());
+            Log::error('Student Show Classroom Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'Classroom not found or unauthorized.'], 404);
         }
     }
@@ -226,8 +225,9 @@ class StudentClassroomController extends Controller
             }
 
             return response()->json($classworks, 200);
+
         } catch (\Exception $e) {
-            Log::error('Student Stream Fetch Error: ' . $e->getMessage());
+            Log::error('Student Stream Fetch Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while fetching stream.'], 500);
         }
     }
@@ -264,7 +264,6 @@ class StudentClassroomController extends Controller
 
             $isResubmission = false;
 
-            // DB TRANSACTION PARA SA DATA CONSISTENCY
             DB::beginTransaction();
 
             if ($existingSubmission) {
@@ -275,6 +274,7 @@ class StudentClassroomController extends Controller
                         ->where('attachable_id', $existingSubmission->id)
                         ->get();
 
+                    // storage path
                     foreach ($files as $file) {
                         $relativePath = str_replace('/storage/', '', $file->path);
                         Storage::disk('public')->delete($relativePath);
@@ -315,7 +315,8 @@ class StudentClassroomController extends Controller
                 foreach ($request->file('files') as $uploadedFile) {
                     $filename = $uploadedFile->getClientOriginalName();
                     $path = $uploadedFile->storeAs($destinationPath, time() . '_' . $filename, 'public');
-
+                    
+                    //storage path
                     File::create([
                         'id' => (string) Str::uuid(),
                         'owner_id' => $user->id,
@@ -346,6 +347,7 @@ class StudentClassroomController extends Controller
 
             $logActionText = $isResubmission ? 'Resubmitted Classwork' : 'Submitted Classwork';
             $cwType = ucfirst($classwork->type);
+
             ActivityLog::create([
                 'user_id' => $studentId,
                 'action' => $logActionText,
@@ -353,11 +355,11 @@ class StudentClassroomController extends Controller
             ]);
 
             DB::commit(); 
-
             return response()->json(['message' => 'Work turned in successfully!'], 200);
+
         } catch (\Exception $e) {
             DB::rollBack(); 
-            Log::error('Student Submit Work Error: ' . $e->getMessage());
+            Log::error('Student Submit Work Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while submitting work.'], 500);
         }
     }
@@ -391,13 +393,13 @@ class StudentClassroomController extends Controller
                 return response()->json(['message' => 'No submission found.'], 404);
             }
 
-            // DB TRANSACTION PARA SA DATA CONSISTENCY
             DB::beginTransaction();
 
             $files = File::where('attachable_type', 'classwork_submission')
                 ->where('attachable_id', $submission->id)
                 ->get();
 
+            // storage path
             foreach ($files as $file) {
                 $relativePath = str_replace('/storage/', '', $file->path);
                 Storage::disk('public')->delete($relativePath);
@@ -405,7 +407,6 @@ class StudentClassroomController extends Controller
             }
 
             DB::table('classwork_submissions')->where('id', $submission->id)->delete();
-
             $classroom = Classroom::find($classwork->classroom_id);
             $subject = DB::table('subjects')->where('id', $classroom->subject_id)->first();
             $subjectName = $subject ? $subject->description : 'Class';
@@ -420,6 +421,7 @@ class StudentClassroomController extends Controller
             ]);
 
             $cwType = ucfirst($classwork->type);
+
             ActivityLog::create([
                 'user_id' => $studentId,
                 'action' => 'Unsubmitted Classwork',
@@ -427,12 +429,11 @@ class StudentClassroomController extends Controller
             ]);
 
             DB::commit(); 
-
             return response()->json(['message' => 'Work unsubmitted successfully!'], 200);
 
         } catch (\Exception $e) {
             DB::rollBack(); 
-            Log::error('Student Unsubmit Work Error: ' . $e->getMessage());
+            Log::error('Student Unsubmit Work Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while unsubmitting work.'], 500);
         }
     }
@@ -458,6 +459,7 @@ class StudentClassroomController extends Controller
 
             $totalEarned = 0;
             $totalPossible = 0;
+
             foreach ($gradedWorks as $work) {
                 $totalEarned += (float) $work->grade;
                 $totalPossible += (float) $work->points;
@@ -537,7 +539,7 @@ class StudentClassroomController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
-            Log::error('Student Fetch Grades Error: ' . $e->getMessage());
+            Log::error('Student Fetch Grades Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while fetching grades.'], 500);
         }
     }
