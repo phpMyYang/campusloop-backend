@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Log;
 
 class CalendarController extends Controller
 {
-    // access control
+    // security
     private function checkAdmin(Request $request)
     {
         return $request->user() && $request->user()->role === 'admin';
@@ -65,8 +65,9 @@ class CalendarController extends Controller
             });
 
             return response()->json($events, 200);
+            
         } catch (\Exception $e) {
-            Log::error('CalendarController getAdminEvents Error: ' . $e->getMessage());
+            Log::error('CalendarController getAdminEvents Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'Failed to load calendar events.'], 500);
         }
     }
@@ -83,8 +84,9 @@ class CalendarController extends Controller
                 ->exists();
 
             return response()->json(['has_active_events' => $hasActive], 200);
+
         } catch (\Exception $e) {
-            Log::error('CalendarController checkActiveIndicator Error: ' . $e->getMessage());
+            Log::error('CalendarController checkActiveIndicator Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'Failed to check indicators.'], 500);
         }
     }

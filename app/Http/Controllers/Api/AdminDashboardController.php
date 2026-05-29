@@ -15,15 +15,15 @@ use Carbon\Carbon;
 
 class AdminDashboardController extends Controller
 {
-    // SAFE ROLE-BASED AUTHORIZATION
+    // security
     private function checkAdmin(Request $request)
     {
         return $request->user() && $request->user()->role === 'admin';
     }
 
+    // fetch dashboard data
     public function index(Request $request)
     {
-        // IMPLICIT AUTHORIZATION CHECK
         if (!$this->checkAdmin($request)) {
             return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
         }
@@ -54,6 +54,7 @@ class AdminDashboardController extends Controller
             if ($strandYear) {
                 $strandQuery->whereYear('users.created_at', $strandYear);
             }
+
             $studentsPerStrand = $strandQuery->selectRaw('strands.name, count(users.id) as value')->groupBy('strands.name')->get();
 
             // DOUGHNUT CHART: Active vs Inactive Users 
@@ -61,9 +62,9 @@ class AdminDashboardController extends Controller
             if ($statusYear) {
                 $statusQuery->whereYear('created_at', $statusYear);
             }
+
             $userStatus = $statusQuery->selectRaw('status, count(id) as value')->groupBy('status')->get();
 
-            // APPLICATION-LAYER DoS (N+1 Queries Mitigated!)
             $teachers = User::where('role', 'teacher')
                 ->where('status', 'active')
                 ->addSelect([
@@ -150,7 +151,6 @@ class AdminDashboardController extends Controller
 
         } catch (\Throwable $e) {
             Log::error('Admin Dashboard Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
-            
             return response()->json([
                 'message' => 'An unexpected error occurred while fetching dashboard data.'
             ], 500);

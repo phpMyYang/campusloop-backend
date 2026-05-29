@@ -11,13 +11,13 @@ use Illuminate\Support\Facades\Log;
 
 class FormController extends Controller
 {
-    // RBAC 
+    // security
     private function checkTeacher(Request $request)
     {
         return $request->user() && $request->user()->role === 'teacher';
     }
 
-    // View Form (WITH SERVER-SIDE PAGINATION & SEARCH)
+    // View Form 
     public function index(Request $request)
     {
         if (!$this->checkTeacher($request)) {
@@ -31,17 +31,16 @@ class FormController extends Controller
             $query = Form::with('creator')
                 ->where('creator_id', $request->user()->id);
 
-            // I-apply ang Search Filter
             if (!empty($search)) {
                 $query->where('name', 'like', "%{$search}%");
             }
 
-            // Gamitin ang Paginate imbes na get()
             $forms = $query->orderBy('created_at', 'desc')->paginate($entries);
             
             return response()->json($forms, 200);
+
         } catch (\Exception $e) {
-            Log::error('Fetch Forms Error: ' . $e->getMessage());
+            Log::error('Fetch Forms Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while fetching forms.'], 500);
         }
     }
@@ -61,13 +60,12 @@ class FormController extends Controller
                 'is_shuffle_questions' => 'boolean',
                 'is_focus_mode' => 'boolean',
             ]);
+
             $validated['timer'] = $validated['timer'] ?? 0;
             $validated['is_shuffle_questions'] = filter_var($validated['is_shuffle_questions'] ?? false, FILTER_VALIDATE_BOOLEAN);
             $validated['is_focus_mode'] = filter_var($validated['is_focus_mode'] ?? false, FILTER_VALIDATE_BOOLEAN);
-
             $form = Form::create(array_merge($validated, ['creator_id' => $request->user()->id]));
 
-            // ACTIVITY LOG
             ActivityLog::create([
                 'user_id' => $request->user()->id,
                 'action' => 'Created Form',
@@ -75,8 +73,9 @@ class FormController extends Controller
             ]);
 
             return response()->json(['message' => 'Form setup saved! Redirecting to builder...', 'form' => $form], 201);
+
         } catch (\Exception $e) {
-            Log::error('Create Form Error: ' . $e->getMessage());
+            Log::error('Create Form Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while creating the form.'], 500);
         }
     }
@@ -98,13 +97,12 @@ class FormController extends Controller
                 'is_shuffle_questions' => 'boolean',
                 'is_focus_mode' => 'boolean',
             ]);
+
             $validated['timer'] = $validated['timer'] ?? 0;
             $validated['is_shuffle_questions'] = filter_var($validated['is_shuffle_questions'] ?? false, FILTER_VALIDATE_BOOLEAN);
             $validated['is_focus_mode'] = filter_var($validated['is_focus_mode'] ?? false, FILTER_VALIDATE_BOOLEAN);
-
             $form->update($validated);
 
-            // ACTIVITY LOG
             ActivityLog::create([
                 'user_id' => $request->user()->id,
                 'action' => 'Updated Form',
@@ -114,7 +112,7 @@ class FormController extends Controller
             return response()->json(['message' => 'Form details updated successfully!'], 200);
 
         } catch (\Exception $e) {
-            Log::error('Update Form Error: ' . $e->getMessage());
+            Log::error('Update Form Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while updating the form.'], 500);
         }
     }
@@ -131,7 +129,6 @@ class FormController extends Controller
             $formName = $form->name;
             $form->delete();
 
-            // ACTIVITY LOG
             ActivityLog::create([
                 'user_id' => $request->user()->id,
                 'action' => 'Deleted Form',
@@ -139,8 +136,9 @@ class FormController extends Controller
             ]);
 
             return response()->json(['message' => 'Form moved to recycle bin.'], 200);
+
         } catch (\Exception $e) {
-            Log::error('Delete Form Error: ' . $e->getMessage());
+            Log::error('Delete Form Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while deleting the form.'], 500);
         }
     }
@@ -155,8 +153,8 @@ class FormController extends Controller
         try {
             // Kasama na ang questions na ife-fetch para maduplicate
             $original = Form::with('questions')->where('creator_id', $request->user()->id)->findOrFail($id);
-            
             $baseName = trim(preg_replace('/\(\d+\)$/', '', $original->name));
+
             $count = Form::where('creator_id', $request->user()->id)
                 ->where(function ($query) use ($baseName) {
                     $query->where('name', $baseName)
@@ -176,7 +174,6 @@ class FormController extends Controller
                 $newQuestion->save();
             }
 
-            // ACTIVITY LOG
             ActivityLog::create([
                 'user_id' => $request->user()->id,
                 'action' => 'Duplicated Form',
@@ -184,8 +181,9 @@ class FormController extends Controller
             ]);
 
             return response()->json(['message' => 'Form duplicated successfully!', 'form' => $newForm], 201);
+
         } catch (\Exception $e) {
-            Log::error('Duplicate Form Error: ' . $e->getMessage());
+            Log::error('Duplicate Form Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while duplicating the form.'], 500);
         }
     }
@@ -203,8 +201,9 @@ class FormController extends Controller
             }])->where('creator_id', $request->user()->id)->findOrFail($id);
 
             return response()->json($form, 200);
+
         } catch (\Exception $e) {
-            Log::error('Show Form Error: ' . $e->getMessage());
+            Log::error('Show Form Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while loading the form.'], 500);
         }
     }
@@ -218,7 +217,6 @@ class FormController extends Controller
 
         try {
             Form::where('creator_id', $request->user()->id)->findOrFail($id);
-
             $search = $request->input('search');
             $entries = $request->input('entries', 10);
 
@@ -235,9 +233,8 @@ class FormController extends Controller
             }
 
             $submissions = $query->orderBy('submitted_at', 'desc')->paginate($entries);
-
-            // Kunin lahat ng isinagot ng student at i-attach sa paginated submission data
             $submissionIds = $submissions->pluck('id');
+
             $answers = DB::table('form_submission_answers')
                 ->whereIn('submission_id', $submissionIds)
                 ->get()
@@ -248,8 +245,9 @@ class FormController extends Controller
             }
 
             return response()->json($submissions, 200);
+
         } catch (\Exception $e) {
-            Log::error('Fetch Respondents Error: ' . $e->getMessage());
+            Log::error('Fetch Respondents Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while fetching respondents.'], 500);
         }
     }

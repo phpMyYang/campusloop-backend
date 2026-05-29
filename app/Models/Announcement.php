@@ -36,12 +36,12 @@ class Announcement extends Model
         $now = now();
         
         if ($this->publish_from && $now->lt($this->publish_from)) {
-            return 'Pending'; // Kung ang current time ay bago pa sa publish_from
+            return 'Pending'; 
         } elseif ($this->valid_until && $now->gt($this->valid_until)) {
-            return 'Done'; // Kung ang current time ay lampas na sa valid_until
+            return 'Done'; 
         }
         
-        return 'Published'; // Kung nasa loob na ng valid date range
+        return 'Published';
     }
 
     // Polymorphic connection para sa attachments ng announcement

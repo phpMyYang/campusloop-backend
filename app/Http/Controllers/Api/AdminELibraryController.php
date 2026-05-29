@@ -13,13 +13,13 @@ use Illuminate\Support\Facades\Log;
 
 class AdminELibraryController extends Controller
 {
-    // Access Control Role
+    // security
     private function checkAdmin(Request $request)
     {
         return $request->user() && $request->user()->role === 'admin';
     }
 
-    // KUNIN LAHAT NG E-LIBRARIES (With Creator & Files)
+    // KUNIN LAHAT NG E-LIBRARIES
     public function index(Request $request)
     {
         if (!$this->checkAdmin($request)) {
@@ -29,7 +29,6 @@ class AdminELibraryController extends Controller
         try {
             $query = ELibrary::with(['creator', 'files']);
 
-            // SERVER-SIDE SEARCH (By Title or Creator Name)
             if ($request->has('search') && !empty($request->search)) {
                 $search = $request->search;
                 $query->where(function($q) use ($search) {
@@ -42,16 +41,12 @@ class AdminELibraryController extends Controller
                 });
             }
 
-            // SERVER-SIDE STATUS FILTER
             if ($request->has('status') && $request->status !== 'all') {
                 $query->where('status', $request->status);
             }
 
-            // SERVER-SIDE SORTING
             $sortOrder = $request->has('sort') && $request->sort === 'oldest' ? 'asc' : 'desc';
             $query->orderBy('created_at', $sortOrder);
-
-            // PAGINATION 
             $entries = $request->has('entries') ? (int) $request->entries : 12;
             $paginatedLibs = $query->paginate($entries);
 
@@ -62,7 +57,7 @@ class AdminELibraryController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
-            Log::error('AdminELibraryController index Error: ' . $e->getMessage());
+            Log::error('AdminELibraryController index Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while fetching materials.'], 500);
         }
     }
@@ -81,18 +76,14 @@ class AdminELibraryController extends Controller
 
             ELibrary::whereIn('id', $request->ids)->update([
                 'status' => 'approved',
-                'admin_feedback' => null, // Linisin ang feedback kapag in-approve na
+                'admin_feedback' => null,
                 'updated_at' => now()
             ]);
 
-            // NOTIFICATION LOGIC
             $adminUser = $request->user();
             $adminName = $adminUser->first_name . ' ' . $adminUser->last_name;
-
-            // Kunin ang E-Libraries KASAMA ang relationship ng creator (para makuha ang pangalan ng teacher)
             $libraries = ELibrary::with('creator')->whereIn('id', $request->ids)->get();
-            
-            // Kunin lahat ng ACTIVE students
+
             $students = User::where('role', 'student')
                                         ->where('status', 'active')
                                         ->get();
@@ -101,10 +92,8 @@ class AdminELibraryController extends Controller
             $currentTime = now()->toDateTimeString();
 
             foreach($libraries as $lib) {
-                // Pangalan ng gumawa ng module (Teacher)
                 $creatorName = $lib->creator ? $lib->creator->first_name . ' ' . $lib->creator->last_name : 'a Teacher';
                 
-                // NOTIFICATION PARA KAY TEACHER (Creator)
                 $notifications[] = [
                     'id' => Str::uuid()->toString(),
                     'user_id' => $lib->creator_id,
@@ -115,13 +104,12 @@ class AdminELibraryController extends Controller
                     'updated_at' => $currentTime,
                 ];
 
-                // NOTIFICATION PARA SA LAHAT NG STUDENTS
                 foreach($students as $student) {
                     $notifications[] = [
                         'id' => Str::uuid()->toString(),
                         'user_id' => $student->id,
                         'description' => "Admin {$adminName} added a new E-Library material: '{$lib->title}' by {$creatorName}.",
-                        'link' => "/student/e-library", // Link papunta sa student e-library
+                        'link' => "/student/e-library", 
                         'is_read' => false,
                         'created_at' => $currentTime,
                         'updated_at' => $currentTime,
@@ -129,7 +117,6 @@ class AdminELibraryController extends Controller
                 }
             }
 
-            // Hahatiin by 500s para mabilis
             if (!empty($notifications)) {
                 foreach (array_chunk($notifications, 500) as $chunk) {
                     DB::table('notifications')->insert($chunk);
@@ -146,9 +133,10 @@ class AdminELibraryController extends Controller
 
             DB::commit(); 
             return response()->json(['message' => 'Selected materials approved successfully.'], 200);
+
         } catch (\Exception $e) {
             DB::rollBack(); 
-            Log::error('AdminELibraryController bulkApprove Error: ' . $e->getMessage());
+            Log::error('AdminELibraryController bulkApprove Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while approving materials.'], 500);
         }
     }
@@ -174,7 +162,6 @@ class AdminELibraryController extends Controller
                 'updated_at' => now()
             ]);
 
-            // NOTIFY TEACHERS (Decline)
             $libraries = ELibrary::whereIn('id', $request->ids)->get();
             $notifications = [];
             $currentTime = now()->toDateTimeString();
@@ -205,9 +192,10 @@ class AdminELibraryController extends Controller
 
             DB::commit();
             return response()->json(['message' => 'Selected materials declined successfully.'], 200);
+
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('AdminELibraryController bulkDecline Error: ' . $e->getMessage());
+            Log::error('AdminELibraryController bulkDecline Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while declining materials.'], 500);
         }
     }
@@ -224,32 +212,25 @@ class AdminELibraryController extends Controller
 
             DB::beginTransaction();
 
-            // KUNIN ANG E-LIBRARIES BAGO BURAHIN PARA SA NOTIF
             $libraries = ELibrary::whereIn('id', $request->ids)->get();
-
-            // Soft Delete
             ELibrary::whereIn('id', $request->ids)->delete(); 
-
-            // NOTIFICATION LOGIC 
             $admin = $request->user();
             $adminName = $admin ? $admin->first_name . ' ' . $admin->last_name : 'Admin';
-
             $notifications = [];
             $currentTime = now()->toDateTimeString();
 
             foreach ($libraries as $lib) {
                 $notifications[] = [
                     'id' => Str::uuid()->toString(),
-                    'user_id' => $lib->creator_id, // Kay Teacher na nag-create ise-send
+                    'user_id' => $lib->creator_id,
                     'description' => "Admin {$adminName} deleted your E-Library material '{$lib->title}'. It was moved to the Recycle Bin.",
-                    'link' => "/teacher/recycle-bin", // Link papunta sa recycle bin o e-library tab
+                    'link' => "/teacher/recycle-bin", 
                     'is_read' => false,
                     'created_at' => $currentTime,
                     'updated_at' => $currentTime,
                 ];
             }
 
-            // ISAHANG BULK INSERT
             if (!empty($notifications)) {
                 foreach (array_chunk($notifications, 500) as $chunk) {
                     DB::table('notifications')->insert($chunk);
@@ -266,9 +247,10 @@ class AdminELibraryController extends Controller
 
             DB::commit();
             return response()->json(['message' => 'Selected materials moved to recycle bin.'], 200);
+
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('AdminELibraryController bulkDelete Error: ' . $e->getMessage());
+            Log::error('AdminELibraryController bulkDelete Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while deleting materials.'], 500);
         }
     }

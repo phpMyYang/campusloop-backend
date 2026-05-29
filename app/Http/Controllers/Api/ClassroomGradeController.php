@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
 
 class ClassroomGradeController extends Controller
 {
-    // access role
+    // security
     private function checkTeacher(Request $request)
     {
         return $request->user() && $request->user()->role === 'teacher';
@@ -118,7 +118,7 @@ class ClassroomGradeController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
-            Log::error('Grades Fetch Error: ' . $e->getMessage() . ' on line ' . $e->getLine());
+            Log::error('Grades Fetch Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json([
                 'message' => 'An unexpected error occurred while fetching the class record.'
             ], 500);

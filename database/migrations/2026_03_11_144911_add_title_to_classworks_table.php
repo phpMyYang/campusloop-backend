@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('classworks', function (Blueprint $table) {
-            // Nilagyan natin ng nullable() para hindi mag-error kapag may existing data ka na sa database na walang title
+            // Nilagyan ng nullable() para hindi mag-error kapag may existing data sa database na walang title
             $table->string('title')->nullable()->after('classroom_id'); 
         });
     }
@@ -23,7 +23,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('classworks', function (Blueprint $table) {
-            // Para kung sakaling i-rollback mo, tatanggalin lang niya ang title column
+            // Para kung sakaling i-rollback mo, tatanggalin lang ang title column
             $table->dropColumn('title'); 
         });
     }

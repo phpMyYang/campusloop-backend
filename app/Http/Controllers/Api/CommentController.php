@@ -56,7 +56,6 @@ class CommentController extends Controller
                 }
             }
 
-            // I-SAVE ANG COMMENT SA DATABASE
             $comment = Comment::create([
                 'user_id' => $currentUser->id,
                 'commentable_type' => Classwork::class,
@@ -69,11 +68,9 @@ class CommentController extends Controller
             $subject = DB::table('subjects')->where('id', $classroom->subject_id)->first();
             $subjectName = $subject ? $subject->description : 'Class';
             $sectionName = $classroom->section;
-
             // FORMAT DETAILS PARA SA DROPDOWN
             $fullName = $currentUser->first_name . ' ' . $currentUser->last_name;
             $role = ucfirst($currentUser->role); 
-            
             $snippet = Str::limit($request->content, 30);
             $classworkTitle = Str::limit($classwork->title, 25);
 
@@ -89,12 +86,10 @@ class CommentController extends Controller
             } else {
                 $description = "{$role} {$fullName} commented on '{$classworkTitle}' in {$subjectName} ({$sectionName}): \"{$snippet}\"";
             }
-
-            // NOTIFICATION LOGIC 
+ 
             $currentTime = now()->toDateTimeString();
             $notifications = [];
 
-            // 1. NOTIFY TEACHER
             if ($currentUser->id !== $classroom->creator_id) {
                 $notifications[] = [
                     'id' => Str::uuid()->toString(),
@@ -107,7 +102,6 @@ class CommentController extends Controller
                 ];
             }
 
-            // NOTIFY STUDENTS
             if ($request->parent_id) {
                 if ($parentComment && $parentComment->user_id !== $currentUser->id) {
                     $targetUser = $parentComment->user;
@@ -169,9 +163,9 @@ class CommentController extends Controller
             }
 
             return response()->json(['message' => 'Comment posted successfully!', 'comment' => $comment], 201);
+
         } catch (\Exception $e) {
-            // Information Leakage sa Error Handling
-            Log::error('Store Comment Error: ' . $e->getMessage());
+            Log::error('Store Comment Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while processing your request.'], 500);
         }
     }
@@ -196,8 +190,7 @@ class CommentController extends Controller
 
             return response()->json(['message' => 'Comment updated successfully!', 'comment' => $comment], 200);
         } catch (\Exception $e) {
-            // Information Leakage
-            Log::error('Update Comment Error: ' . $e->getMessage());
+            Log::error('Update Comment Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while processing your request.'], 500);
         }
     }
@@ -217,8 +210,7 @@ class CommentController extends Controller
 
             return response()->json(['message' => 'Comment deleted successfully!'], 200);
         } catch (\Exception $e) {
-            // Information Leakage
-            Log::error('Delete Comment Error: ' . $e->getMessage());
+            Log::error('Delete Comment Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while processing your request.'], 500);
         }
     }

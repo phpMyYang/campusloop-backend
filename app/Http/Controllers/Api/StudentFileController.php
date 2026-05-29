@@ -12,7 +12,7 @@ use ZipArchive;
 
 class StudentFileController extends Controller
 {
-    // RBAC
+    // security
     private function checkStudent(Request $request)
     {
         return $request->user() && $request->user()->role === 'student';
@@ -29,7 +29,6 @@ class StudentFileController extends Controller
             $studentId = $request->user()->id;
             $search = $request->input('search', '');
             $entries = (int) $request->input('entries', 12); 
-
             $query = File::where('owner_id', $studentId);
 
             if (!empty($search)) {
@@ -41,7 +40,7 @@ class StudentFileController extends Controller
             return response()->json($files, 200);
 
         } catch (\Exception $e) {
-            Log::error('Student Fetch Files Error: ' . $e->getMessage());
+            Log::error('Student Fetch Files Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while fetching files.'], 500);
         }
     }
@@ -70,6 +69,7 @@ class StudentFileController extends Controller
             $zipFileName = 'Student_Files_' . time() . '.zip';
             $zipPath = storage_path('app/public/' . $zipFileName);
 
+            // storage path
             if ($zip->open($zipPath, ZipArchive::CREATE) === TRUE) {
                 foreach ($files as $file) {
                     $rawPath = str_replace('storage/', '', $file->path);
@@ -93,7 +93,7 @@ class StudentFileController extends Controller
             return response()->download($zipPath)->deleteFileAfterSend(true);
 
         } catch (\Exception $e) {
-            Log::error('Student Download ZIP Error: ' . $e->getMessage());
+            Log::error('Student Download ZIP Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while processing the ZIP file.'], 500);
         }
     }

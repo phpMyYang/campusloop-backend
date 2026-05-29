@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Log;
 
 class StudentHomeController extends Controller
 {
-    // RBAC 
+    // security
     private function checkStudent(Request $request)
     {
         return $request->user() && $request->user()->role === 'student';
@@ -33,7 +33,6 @@ class StudentHomeController extends Controller
             $student = $request->user();
             $now = now();
 
-            // GET PUBLISHED ANNOUNCEMENTS WITH COMMENTS
             $announcements = Announcement::with([
                 'creator', 
                 'files', 
@@ -50,13 +49,11 @@ class StudentHomeController extends Controller
             ->orderBy('publish_from', 'desc')
             ->get();
 
-            // GET APPROVED CLASSROOMS (Count)
             $classrooms = Classroom::whereHas('students', function ($q) use ($student) {
                 $q->where('student_id', $student->id)->where('classroom_student.status', 'approved');
             })->get();
-            $classroomsCount = $classrooms->count();
 
-            // GET TODAY'S SCHEDULES (Classes & Deadlines)
+            $classroomsCount = $classrooms->count();
             $todayName = strtolower($now->format('l')); 
             $shortToday = strtolower($now->format('D')); 
             $todayDate = $now->format('Y-m-d');
@@ -117,28 +114,19 @@ class StudentHomeController extends Controller
                 $submission = $cw->classwork_submissions->first();
                 
                 if ($submission) {
-                    // Binalik ng teacher (for revision)
                     if ($submission->status === 'returned') {
                         $statusCode = 'returned'; $indicator = 'secondary'; $label = 'RETURNED';
-                    } 
-                    // Nabigyan na ng Grade
-                    elseif ($submission->status === 'graded') {
+                    } elseif ($submission->status === 'graded') {
                         if (!is_null($submission->grade)) {
                             $statusCode = 'graded'; $indicator = 'success'; $label = 'GRADED';
                         } else {
                             $statusCode = 'returned'; $indicator = 'secondary'; $label = 'RETURNED';
                         }
-                    } 
-                    // Na-late ipasa
-                    elseif ($submission->status === 'late_submission' || $submission->status === 'done_late') {
+                    } elseif ($submission->status === 'late_submission' || $submission->status === 'done_late') {
                         $statusCode = 'done_late'; $indicator = 'warning'; $label = 'DONE LATE';
-                    } 
-                    // Minarkahang 'Done' (walang attachments/quiz)
-                    elseif ($submission->status === 'done') {
+                    } elseif ($submission->status === 'done') {
                         $statusCode = 'done'; $indicator = 'success'; $label = 'DONE';
-                    } 
-                    // Turned In (Waiting for checking)
-                    else {
+                    } else {
                         if (!is_null($submission->teacher_feedback)) {
                             $statusCode = 'returned'; $indicator = 'secondary'; $label = 'RETURNED';
                         } else {
@@ -146,7 +134,6 @@ class StudentHomeController extends Controller
                         }
                     }
                 } else {
-                    // Wala pang ipinapasa ang estudyante
                     if ($cw->deadline && $now->gt($cw->deadline)) {
                         $statusCode = 'missing'; $indicator = 'danger'; $label = 'MISSING';
                     } else {
@@ -166,7 +153,6 @@ class StudentHomeController extends Controller
                 ];
             }
 
-            // PAG-SORT: Inayos ang priority list base sa bagong status codes
             usort($todos, function($a, $b) {
                 $priority = [
                     'missing'   => 1, 
@@ -191,7 +177,7 @@ class StudentHomeController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
-            Log::error('Student Dashboard Error: ' . $e->getMessage());
+            Log::error('Student Dashboard Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred.'], 500);
         }
     }
@@ -220,7 +206,6 @@ class StudentHomeController extends Controller
             $currentUser = $request->user();
             $fullName = $currentUser->first_name . ' ' . $currentUser->last_name;
             $role = ucfirst($currentUser->role); 
-            
             $snippet = Str::limit($request->content, 30);
             $announcementTitle = Str::limit($announcement->title, 25);
 
@@ -252,6 +237,7 @@ class StudentHomeController extends Controller
             }
 
             $admins = User::where('role', 'admin')->get();
+
             foreach ($admins as $admin) {
                 DB::table('notifications')->insert([
                     'id' => Str::uuid()->toString(),
@@ -273,7 +259,7 @@ class StudentHomeController extends Controller
             return response()->json(['message' => 'Comment posted successfully', 'comment' => $comment], 201);
             
         } catch (\Exception $e) {
-            Log::error('Student Post Comment Error: ' . $e->getMessage());
+            Log::error('Student Post Comment Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while posting comment.'], 500);
         }
     }
@@ -297,8 +283,9 @@ class StudentHomeController extends Controller
             ]);
 
             return response()->json(['message' => 'Comment updated successfully']);
+
         } catch (\Exception $e) {
-            Log::error('Student Update Comment Error: ' . $e->getMessage());
+            Log::error('Student Update Comment Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while updating comment.'], 500);
         }
     }
@@ -321,8 +308,9 @@ class StudentHomeController extends Controller
             ]);
 
             return response()->json(['message' => 'Comment deleted successfully']);
+
         } catch (\Exception $e) {
-            Log::error('Student Delete Comment Error: ' . $e->getMessage());
+            Log::error('Student Delete Comment Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while deleting comment.'], 500);
         }
     }

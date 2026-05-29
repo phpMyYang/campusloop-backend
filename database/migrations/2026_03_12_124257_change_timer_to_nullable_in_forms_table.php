@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('forms', function (Blueprint $table) {
-            // Gagamitin natin ang ->change() para i-modify ang existing column lang
+            // Gagamitin ang ->change() para i-modify ang existing column lang
             $table->integer('timer')->nullable()->change();
         });
     }

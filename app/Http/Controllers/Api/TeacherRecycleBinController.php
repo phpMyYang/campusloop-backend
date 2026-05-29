@@ -15,10 +15,11 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Validation\ValidationException;
 
 class TeacherRecycleBinController extends Controller
 {
-    // RBAC
+    // security
     private function checkTeacher(Request $request)
     {
         return $request->user() && $request->user()->role === 'teacher';
@@ -129,7 +130,7 @@ class TeacherRecycleBinController extends Controller
             return response()->json($paginatedItems, 200);
 
         } catch (\Throwable $e) {
-            Log::error('Fetch Recycle Bin Error: ' . $e->getMessage());
+            Log::error('Fetch Recycle Bin Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'Failed to load recycle bin data.'], 500);
         }
     }
@@ -203,7 +204,6 @@ class TeacherRecycleBinController extends Controller
                 }
             }
 
-            // ACTIVITY LOG
             if ($restoredCount > 0) {
                 ActivityLog::create([
                     'user_id' => $userId,
@@ -214,10 +214,10 @@ class TeacherRecycleBinController extends Controller
             
             return response()->json(['message' => 'Items successfully restored.']);
 
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             return response()->json(['message' => 'Validation Error', 'errors' => $e->errors()], 422);
         } catch (\Exception $e) {
-            Log::error('Restore Recycle Bin Error: ' . $e->getMessage());
+            Log::error('Restore Recycle Bin Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An error occurred while restoring items.'], 500);
         }
     }

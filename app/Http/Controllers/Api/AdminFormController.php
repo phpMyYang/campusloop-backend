@@ -28,49 +28,47 @@ class AdminFormController extends Controller
             return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
         }
 
-        $query = Form::with('creator');
+        try {
+            $query = Form::with('creator');
 
-        // SERVER-SIDE SEARCH
-        if ($request->has('search') && !empty($request->search)) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                // Hanapin sa Form Name
-                $q->where('name', 'LIKE', "%{$search}%")
-                  // hanapin sa pangalan ng Teacher
-                  ->orWhereHas('creator', function($q2) use ($search) {
-                      $q2->where('first_name', 'LIKE', "%{$search}%")
-                         ->orWhere('last_name', 'LIKE', "%{$search}%")
-                         ->orWhere(DB::raw("CONCAT(first_name, ' ', last_name)"), 'LIKE', "%{$search}%");
-                  });
-            });
+            if ($request->has('search') && !empty($request->search)) {
+                $search = $request->search;
+                $query->where(function($q) use ($search) {
+                    $q->where('name', 'LIKE', "%{$search}%")
+                    ->orWhereHas('creator', function($q2) use ($search) {
+                        $q2->where('first_name', 'LIKE', "%{$search}%")
+                            ->orWhere('last_name', 'LIKE', "%{$search}%")
+                            ->orWhere(DB::raw("CONCAT(first_name, ' ', last_name)"), 'LIKE', "%{$search}%");
+                    });
+                });
+            }
+
+            if ($request->has('teacher') && $request->teacher !== 'all') {
+                $query->where('creator_id', $request->teacher);
+            }
+
+            $sortOrder = $request->has('sort') && $request->sort === 'oldest' ? 'asc' : 'desc';
+            $query->orderBy('created_at', $sortOrder);
+            $entries = $request->has('entries') ? (int) $request->entries : 12;
+            $paginatedForms = $query->paginate($entries);
+            $teacherIds = Form::select('creator_id')->distinct()->pluck('creator_id')->filter();
+
+            $teachers = User::whereIn('id', $teacherIds)
+                ->select('id', 'first_name', 'last_name')
+                ->orderBy('first_name', 'asc')
+                ->get();
+
+            return response()->json([
+                'data' => $paginatedForms->items(),
+                'total' => $paginatedForms->total(),
+                'last_page' => $paginatedForms->lastPage(),
+                'teachers' => $teachers
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('AdminFormController index Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
+            return response()->json(['message' => 'An unexpected error occurred while fetching forms.'], 500);
         }
-
-        // SERVER-SIDE TEACHER FILTER
-        if ($request->has('teacher') && $request->teacher !== 'all') {
-            $query->where('creator_id', $request->teacher);
-        }
-
-        // SERVER-SIDE SORTING
-        $sortOrder = $request->has('sort') && $request->sort === 'oldest' ? 'asc' : 'desc';
-        $query->orderBy('created_at', $sortOrder);
-
-        // PAGINATION (Default to 12 since Grid ito)
-        $entries = $request->has('entries') ? (int) $request->entries : 12;
-        $paginatedForms = $query->paginate($entries);
-
-        // KUNIN ANG MGA UNIQUE TEACHERS PARA SA DROPDOWN SA FRONTEND
-        $teacherIds = Form::select('creator_id')->distinct()->pluck('creator_id')->filter();
-        $teachers = User::whereIn('id', $teacherIds)
-            ->select('id', 'first_name', 'last_name')
-            ->orderBy('first_name', 'asc')
-            ->get();
-
-        return response()->json([
-            'data' => $paginatedForms->items(),
-            'total' => $paginatedForms->total(),
-            'last_page' => $paginatedForms->lastPage(),
-            'teachers' => $teachers
-        ], 200);
     }
 
     // Bulk Delete (Soft Delete) para sa Forms
@@ -86,29 +84,24 @@ class AdminFormController extends Controller
                 'ids.*' => 'exists:forms,id'
             ]);
 
-            // KUNIN ANG FORMS BAGO BURAHIN PARA SA NOTIF
+            DB::beginTransaction();
+
             $forms = Form::whereIn('id', $request->ids)->get();
-
-            // Soft Delete
             Form::whereIn('id', $request->ids)->delete();
-
-            // NOTIFICATION LOGIC 
             $admin = $request->user();
             $adminName = $admin ? $admin->first_name . ' ' . $admin->last_name : 'Admin';
-
             $notifications = [];
             $currentTime = now()->toDateTimeString();
 
             foreach ($forms as $form) {
-                // I-check kung may creator_id bago gumawa ng notification
                 if ($form->creator_id) {
                     $formName = $form->name ?? 'Quiz/Exam';
                     
                     $notifications[] = [
                         'id' => Str::uuid()->toString(),
-                        'user_id' => $form->creator_id, // Ise-send sa mismong Teacher na gumawa
+                        'user_id' => $form->creator_id, 
                         'description' => "Admin {$adminName} deleted your form '{$formName}'. It was moved to the Recycle Bin.",
-                        'link' => "/teacher/recycle-bin", // Direkta sa recycle bin ni Teacher
+                        'link' => "/teacher/recycle-bin", 
                         'is_read' => false,
                         'created_at' => $currentTime,
                         'updated_at' => $currentTime,
@@ -116,7 +109,6 @@ class AdminFormController extends Controller
                 }
             }
 
-            // ISAHANG BULK INSERT
             if (!empty($notifications)) {
                 foreach (array_chunk($notifications, 500) as $chunk) {
                     DB::table('notifications')->insert($chunk);
@@ -133,9 +125,12 @@ class AdminFormController extends Controller
                 ]);
             }
 
+            DB::commit();
             return response()->json(['message' => 'Forms moved to recycle bin.'], 200);
+
         } catch (\Exception $e) {
-            Log::error('AdminFormController destroyBulk Error: ' . $e->getMessage());
+            DB::rollBack();
+            Log::error('AdminFormController destroyBulk Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An error occurred while deleting forms.'], 500);
         }
     }
@@ -147,11 +142,17 @@ class AdminFormController extends Controller
             return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
         }
 
-        $form = Form::with(['questions' => function ($query) {
-            $query->orderBy('created_at', 'asc');
-        }])->findOrFail($id);
+        try {
+            $form = Form::with(['questions' => function ($query) {
+                $query->orderBy('created_at', 'asc');
+            }])->findOrFail($id);
 
-        return response()->json($form, 200);
+            return response()->json($form, 200);
+
+        } catch (\Exception $e) {
+            Log::error('AdminFormController show Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
+            return response()->json(['message' => 'An unexpected error occurred while loading the form details.'], 500);
+        }
     }
 
     // Student Answers 
@@ -161,47 +162,48 @@ class AdminFormController extends Controller
             return response()->json(['message' => 'Unauthorized access. Admin privileges required.'], 403);
         }
         
-        $query = FormSubmission::with(['student.strand'])
-            ->where('form_id', $id);
+        try {
+            $query = FormSubmission::with(['student.strand'])
+                ->where('form_id', $id);
 
-       // SERVER-SIDE SEARCH (Pangalan, Email, LRN, o Strand)
-        if ($request->has('search') && !empty($request->search)) {
-            $search = $request->search;
-            $query->whereHas('student', function($q) use ($search) {
-                $q->where('users.first_name', 'LIKE', "%{$search}%")
-                  ->orWhere('users.last_name', 'LIKE', "%{$search}%")
-                  ->orWhere(DB::raw("CONCAT(users.first_name, ' ', users.last_name)"), 'LIKE', "%{$search}%")
-                  ->orWhere('users.email', 'LIKE', "%{$search}%")
-                  ->orWhere('users.lrn', 'LIKE', "%{$search}%")
-                  ->orWhereHas('strand', function($qStrand) use ($search) {
-                      $qStrand->where('strands.name', 'LIKE', "%{$search}%");
-                  });
-            });
+            if ($request->has('search') && !empty($request->search)) {
+                $search = $request->search;
+                $query->whereHas('student', function($q) use ($search) {
+                    $q->where('users.first_name', 'LIKE', "%{$search}%")
+                    ->orWhere('users.last_name', 'LIKE', "%{$search}%")
+                    ->orWhere(DB::raw("CONCAT(users.first_name, ' ', users.last_name)"), 'LIKE', "%{$search}%")
+                    ->orWhere('users.email', 'LIKE', "%{$search}%")
+                    ->orWhere('users.lrn', 'LIKE', "%{$search}%")
+                    ->orWhereHas('strand', function($qStrand) use ($search) {
+                        $qStrand->where('strands.name', 'LIKE', "%{$search}%");
+                    });
+                });
+            }
+
+            $query->orderBy('submitted_at', 'desc');
+            $entries = $request->has('entries') ? (int) $request->entries : 10;
+            $paginatedSubmissions = $query->paginate($entries);
+            $submissionIds = collect($paginatedSubmissions->items())->pluck('id');
+
+            $answers = DB::table('form_submission_answers')
+                ->whereIn('submission_id', $submissionIds)
+                ->get()
+                ->groupBy('submission_id');
+
+            foreach ($paginatedSubmissions->items() as $submission) {
+                $submission->answers = isset($answers[$submission->id]) ? $answers[$submission->id] : [];
+            }
+
+            return response()->json([
+                'data' => $paginatedSubmissions->items(),
+                'total' => $paginatedSubmissions->total(),
+                'last_page' => $paginatedSubmissions->lastPage()
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error('AdminFormController respondents Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
+            return response()->json(['message' => 'An unexpected error occurred while loading respondents.'], 500);
         }
-
-        // Pinakabagong submission sa unahan
-        $query->orderBy('submitted_at', 'desc');
-
-        // PAGINATION
-        $entries = $request->has('entries') ? (int) $request->entries : 10;
-        $paginatedSubmissions = $query->paginate($entries);
-
-        // KUNIN LANG ANG MGA ANSWERS NG MGA NASA CURRENT PAGE (Para bumilis ang query)
-        $submissionIds = collect($paginatedSubmissions->items())->pluck('id');
-        $answers = DB::table('form_submission_answers')
-            ->whereIn('submission_id', $submissionIds)
-            ->get()
-            ->groupBy('submission_id');
-
-        foreach ($paginatedSubmissions->items() as $submission) {
-            $submission->answers = isset($answers[$submission->id]) ? $answers[$submission->id] : [];
-        }
-
-        return response()->json([
-            'data' => $paginatedSubmissions->items(),
-            'total' => $paginatedSubmissions->total(),
-            'last_page' => $paginatedSubmissions->lastPage()
-        ], 200);
     }
 
     // UNSUBMIT (ADMIN CONTROL)
@@ -217,55 +219,36 @@ class AdminFormController extends Controller
                                         ->firstOrFail();
 
             $studentId = $submission->student_id;
-            
-            // Kunin ang student user para makuha ang pangalan para sa notification ni teacher
             $student = User::find($studentId);
-
-            // KUNIN ANG DETAILS BAGO BURAHIN PARA SA NOTIF
             $form = DB::table('forms')->where('id', $formId)->first();
             $classwork = DB::table('classworks')->where('form_id', $formId)->first();
 
             DB::beginTransaction();
 
-            // Alisin ang sagot sa form_submission_answers (Hard delete via DB query)
             DB::table('form_submission_answers')->where('submission_id', $submissionId)->delete();
-
-            // Alisin ang mismong submission record NANG PERMANENTE (Hard Delete)
             $submission->forceDelete();
 
-            // Hanapin ang classwork na nakakabit sa form na ito at alisin din ang classwork_submission record
             if ($classwork) {
                 DB::table('classwork_submissions')
                     ->where('classwork_id', $classwork->id)
                     ->where('student_id', $studentId)
-                    ->delete(); // Hard delete via DB query
+                    ->delete(); 
             }
-
-            // NOTIFICATION LOGIC FOR TEACHER & STUDENT
             if ($form && $classwork) {
                 $admin = $request->user();
                 $adminName = $admin->first_name . ' ' . $admin->last_name;
                 $studentName = $student ? $student->first_name . ' ' . $student->last_name : 'a student';
-
-                // Kunin ang details ng classroom para makuha ang Teacher ID, Subject, at Section
                 $classroom = DB::table('classrooms')->where('id', $classwork->classroom_id)->first();
-                
                 $teacherId = $classroom ? $classroom->creator_id : null;
                 $sectionName = $classroom ? $classroom->section : 'Unknown Section';
-                
                 $subject = $classroom ? DB::table('subjects')->where('id', $classroom->subject_id)->first() : null;
                 $subjectName = $subject ? $subject->description : 'the class';
-                
                 $formName = $form->name ?? 'Quiz/Exam';
-
-                // I-setup ang magkaibang link para sa magkaibang dashboard
                 $studentLink = $classroom ? "/student/classrooms/{$classroom->id}/stream" : "/student/classrooms";
                 $teacherLink = $classroom ? "/teacher/classrooms/{$classroom->id}/stream" : "/teacher/classrooms";
-
                 $currentTime = now()->toDateTimeString();
                 $notifications = [];
 
-                // NOTIFICATION PARA KAY STUDENT
                 $notifications[] = [
                     'id' => Str::uuid()->toString(),
                     'user_id' => $studentId,
@@ -276,7 +259,6 @@ class AdminFormController extends Controller
                     'updated_at' => $currentTime,
                 ];
 
-                // NOTIFICATION PARA KAY TEACHER (Creator ng class)
                 if ($teacherId) {
                     $notifications[] = [
                         'id' => Str::uuid()->toString(),
@@ -289,7 +271,6 @@ class AdminFormController extends Controller
                     ];
                 }
 
-                // Isahang Insert
                 if (!empty($notifications)) {
                     DB::table('notifications')->insert($notifications);
                 }
@@ -302,13 +283,14 @@ class AdminFormController extends Controller
             ]);
 
             DB::commit();
-            return response()->json(['message' => 'Student submission removed permanently and notified both teacher and student.'], 200);
+            return response()->json(['message' => 'Student submission removed permanently.'], 200);
 
         } catch (ModelNotFoundException $e) {
-            return response()->json(['message' => 'Submission not found or does not belong to this form.'], 404);
+            DB::rollBack();
+            return response()->json(['message' => 'Submission not found.'], 404);
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('AdminFormController unsubmit Error: ' . $e->getMessage());
+            Log::error('AdminFormController unsubmit Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An error occurred while resetting the submission.'], 500);
         }
     }
@@ -320,17 +302,23 @@ class AdminFormController extends Controller
             abort(403, 'Unauthorized access. Admin privileges required.');
         }
 
-        $form = Form::with(['creator', 'questions'])->findOrFail($id);
-        $admin = $request->user(); 
+        try {
+            $form = Form::with(['creator', 'questions'])->findOrFail($id);
+            $admin = $request->user(); 
 
-        ActivityLog::create([
-            'user_id' => $admin->id,
-            'action' => 'Printed Blank Form',
-            'description' => "Generated a print view for the form '{$form->name}'."
-        ]);
-        
-        $html = view('print.teacherform', compact('form', 'admin'))->render();
-        return response($html)->header('Content-Type', 'text/html');
+            ActivityLog::create([
+                'user_id' => $admin->id,
+                'action' => 'Printed Blank Form',
+                'description' => "Generated a print view for the form '{$form->name}'."
+            ]);
+            
+            $html = view('print.teacherform', compact('form', 'admin'))->render();
+            return response($html)->header('Content-Type', 'text/html');
+
+        } catch (\Exception $e) {
+            Log::error('AdminFormController printTeacherForm Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
+            return response()->json(['message' => 'An unexpected error occurred while generating the print view.'], 500);
+        }
     }
 
     // Print Student Answer
@@ -340,24 +328,29 @@ class AdminFormController extends Controller
             abort(403, 'Unauthorized access. Admin privileges required.');
         }
 
-        $form = Form::with(['questions'])->findOrFail($formId);
+        try {
+            $form = Form::with(['questions'])->findOrFail($formId);
 
-        $submission = FormSubmission::with(['student', 'answers'])
-                                    ->where('id', $submissionId)
-                                    ->where('form_id', $formId)
-                                    ->firstOrFail();
+            $submission = FormSubmission::with(['student', 'answers'])
+                                        ->where('id', $submissionId)
+                                        ->where('form_id', $formId)
+                                        ->firstOrFail();
 
-        $admin = $request->user(); 
+            $admin = $request->user(); 
+            $studentName = $submission->student ? $submission->student->first_name . ' ' . $submission->student->last_name : 'a student';
 
-        $studentName = $submission->student ? $submission->student->first_name . ' ' . $submission->student->last_name : 'a student';
+            ActivityLog::create([
+                'user_id' => $admin->id,
+                'action' => 'Printed Student Submission',
+                'description' => "Generated a print view for {$studentName}'s submission in '{$form->name}'."
+            ]);
 
-        ActivityLog::create([
-            'user_id' => $admin->id,
-            'action' => 'Printed Student Submission',
-            'description' => "Generated a print view for {$studentName}'s submission in '{$form->name}'."
-        ]);
+            $html = view('print.studentform', compact('form', 'submission', 'admin'))->render();
+            return response($html)->header('Content-Type', 'text/html');
 
-        $html = view('print.studentform', compact('form', 'submission', 'admin'))->render();
-        return response($html)->header('Content-Type', 'text/html');
+        } catch (\Exception $e) {
+            Log::error('AdminFormController printStudentForm Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
+            return response()->json(['message' => 'An unexpected error occurred while generating the student print view.'], 500);
+        }
     }
 }

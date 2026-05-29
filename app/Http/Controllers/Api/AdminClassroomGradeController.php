@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Log;
 
 class AdminClassroomGradeController extends Controller
 {
-    // SECURITY FEATURE
+    // SECURITY
     private function checkAdmin(Request $request)
     {
         return $request->user() && $request->user()->role === 'admin';
@@ -23,13 +23,11 @@ class AdminClassroomGradeController extends Controller
         }
 
         try {
-            // I-check kung nag-eexist ang classroom
             $classroom = DB::table('classrooms')->where('id', $classroomId)->first();
             if (!$classroom) {
                 return response()->json(['message' => 'Classroom not found'], 404);
             }
 
-            // Kunin lahat ng Classworks (Columns)
             $classworks = DB::table('classworks')
                 ->where('classroom_id', $classroomId)
                 ->where('type', '!=', 'material')
@@ -38,7 +36,6 @@ class AdminClassroomGradeController extends Controller
                 ->select('id', 'title', 'type', 'points', 'created_at', 'deadline')
                 ->get();
 
-            // Kunin ang mga enrolled student IDs
             $studentIds = DB::table('classroom_student')
                 ->where('classroom_id', $classroomId)
                 ->where('status', 'approved')
@@ -46,7 +43,6 @@ class AdminClassroomGradeController extends Controller
                 ->pluck('student_id')
                 ->toArray();
 
-            // SERVER-SIDE SEARCH AT PAGINATION PARA SA STUDENTS (Rows)
             $studentsQuery = DB::table('users')
                 ->whereIn('id', $studentIds)
                 ->select('id', 'first_name', 'last_name', 'lrn');
@@ -63,8 +59,6 @@ class AdminClassroomGradeController extends Controller
 
             $entries = $request->has('entries') ? (int) $request->entries : 10;
             $paginatedStudents = $studentsQuery->orderBy('last_name', 'asc')->paginate($entries);
-
-            // Kunin lamang ang submissions ng MGA ESTUDYANTE NA NASA CURRENT PAGE
             $classworkIds = $classworks->pluck('id')->toArray();
             $currentPageStudentIds = collect($paginatedStudents->items())->pluck('id')->toArray();
             $submissions = [];
@@ -80,7 +74,6 @@ class AdminClassroomGradeController extends Controller
                 }
             }
 
-            // Pagsamahin ang Students at Submissions
             $studentsData = [];
             $now = now();
 
@@ -94,7 +87,6 @@ class AdminClassroomGradeController extends Controller
                     if ($sub) {
                         $processedSubs[] = $sub;
                     } else {
-                        // Kung walang pinasa at lagpas na sa deadline, markahan as 'missing'
                         if ($cw->deadline && $now > $cw->deadline) {
                             $processedSubs[] = [
                                 'classwork_id' => $cw->id,
@@ -115,7 +107,6 @@ class AdminClassroomGradeController extends Controller
                 ];
             }
 
-            // Ibato ang data kasama ang pagination info
             return response()->json([
                 'classworks' => $classworks,
                 'students' => $studentsData,

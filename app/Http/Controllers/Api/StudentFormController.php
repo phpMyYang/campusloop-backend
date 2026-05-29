@@ -15,7 +15,7 @@ use Carbon\Carbon;
 
 class StudentFormController extends Controller
 {
-    // RBAC
+    // security
     private function checkStudent(Request $request)
     {
         return $request->user() && $request->user()->role === 'student';
@@ -32,8 +32,8 @@ class StudentFormController extends Controller
             $studentId = $request->user()->id;
             $form = Form::with('questions')->findOrFail($id);
             $form->questions->makeHidden(['correct_answer']);
-
             $classwork = Classwork::where('form_id', $form->id)->first();
+
             if (!$classwork) {
                 return response()->json(['message' => 'This form is not linked to any classwork.'], 400);
             }
@@ -109,7 +109,7 @@ class StudentFormController extends Controller
             ], 200);
             
         } catch (\Exception $e) {
-            Log::error('Student Form Show Error: ' . $e->getMessage());
+            Log::error('Student Form Show Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while loading the form.'], 500);
         }
     }
@@ -166,8 +166,9 @@ class StudentFormController extends Controller
             }
 
             return response()->json(['message' => 'Progress saved.'], 200);
+
         } catch (\Exception $e) {
-            Log::error('Save Progress Error: ' . $e->getMessage());
+            Log::error('Save Progress Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'Failed to save progress.'], 500);
         }
     }
@@ -214,7 +215,6 @@ class StudentFormController extends Controller
                 $startedAtStr = $existingSubmission->started_at ?? $existingSubmission->created_at;
                 $startedTimestamp = strtotime($startedAtStr);
                 $currentTimestamp = time();
-                
                 $elapsedSeconds = max(0, $currentTimestamp - $startedTimestamp);
                 $allowedSeconds = ($form->timer * 60) + 10; 
                 
@@ -335,7 +335,7 @@ class StudentFormController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Student Form Submit Error: ' . $e->getMessage());
+            Log::error('Student Form Submit Error: ' . $e->getMessage() . ' on line ' . $e->getLine() . ' in ' . $e->getFile());
             return response()->json(['message' => 'An unexpected error occurred while submitting your form.'], 500);
         }
     }

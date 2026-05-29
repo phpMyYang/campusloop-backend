@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('comments', function (Blueprint $table) {
             $table->uuid('id')->primary(); 
             $table->foreignUuid('user_id')->constrained('users')->onDelete('cascade'); 
-            $table->uuidMorphs('commentable'); // Best practice para sa polymorphic UUIDs 
+            $table->uuidMorphs('commentable'); // para sa polymorphic UUIDs 
             $table->foreignUuid('parent_id')->nullable()->constrained('comments')->onDelete('cascade'); 
             $table->text('content'); 
             $table->timestamps(); 

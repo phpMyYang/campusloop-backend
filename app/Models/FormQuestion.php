@@ -16,7 +16,7 @@ class FormQuestion extends Model
     ];
 
     protected $casts = [
-        'choices' => 'array', // Para automatic maging array ang JSON galing database
+        'choices' => 'array', // automatic maging array ang JSON galing database
     ];
 
     public function form()
