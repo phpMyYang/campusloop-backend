@@ -142,7 +142,7 @@ class TeacherRecycleBinController extends Controller
             'id' => $id,
             'title' => $title ?? 'Untitled Item',
             'type' => $type,
-            'owner' => 'Me (' . $owner . ')',
+            'owner' => 'Me: ' . $owner,
             'deleted_at' => $deletedAt
         ];
     }
