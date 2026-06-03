@@ -198,7 +198,7 @@ class SubjectController extends Controller
         }
 
         $request->validate([
-            'file' => 'required|file|mimes:csv,txt|max:5120', 
+            'file' => 'required|file|mimes:csv|max:5120', 
         ]);
 
         try {
