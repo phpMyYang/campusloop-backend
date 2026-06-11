@@ -22,6 +22,36 @@ class PublicFileStorage
         return '/storage/'.$relativePath;
     }
 
+    /**
+     * URL safe to open in the browser (signed URL for private S3 buckets).
+     */
+    public static function urlForResponse(?string $storedPath): string
+    {
+        if ($storedPath === null || $storedPath === '') {
+            return '';
+        }
+
+        $relativePath = self::relativePath($storedPath);
+
+        if ($relativePath === '') {
+            return $storedPath;
+        }
+
+        if (config('filesystems.disks.public.driver') === 's3') {
+            return self::disk()->temporaryUrl($relativePath, now()->addHours(2));
+        }
+
+        if (str_starts_with($storedPath, 'http://') || str_starts_with($storedPath, 'https://')) {
+            return $storedPath;
+        }
+
+        if (str_starts_with($storedPath, '/')) {
+            return $storedPath;
+        }
+
+        return '/storage/'.$relativePath;
+    }
+
     public static function relativePath(?string $storedPath): string
     {
         if ($storedPath === null || $storedPath === '') {
@@ -48,5 +78,16 @@ class PublicFileStorage
         if (self::disk()->exists($relativePath)) {
             self::disk()->delete($relativePath);
         }
+    }
+
+    public static function readContents(?string $storedPath): ?string
+    {
+        $relativePath = self::relativePath($storedPath);
+
+        if ($relativePath === '' || ! self::disk()->exists($relativePath)) {
+            return null;
+        }
+
+        return self::disk()->get($relativePath);
     }
 }

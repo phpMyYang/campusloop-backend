@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Support\PublicFileStorage;
 use Illuminate\Http\Request;
 use App\Models\File;
 use App\Models\ActivityLog;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use ZipArchive;
 
 class TeacherFileController extends Controller
 {
@@ -81,16 +83,22 @@ class TeacherFileController extends Controller
             $zipPath = storage_path('app/public/' . $zipFileName);
 
             // storage path
+            $hasFiles = false;
+
             if ($zip->open($zipPath, ZipArchive::CREATE) === TRUE) {
                 foreach ($files as $file) {
-                    $rawPath = str_replace('storage/', '', $file->path);
-                    $fullPath = storage_path('app/public/' . $rawPath);
-                    
-                    if (file_exists($fullPath)) {
-                        $zip->addFile($fullPath, $file->name);
+                    $contents = PublicFileStorage::readContents($file->getRawOriginal('path'));
+
+                    if ($contents !== null) {
+                        $zip->addFromString($file->name, $contents);
+                        $hasFiles = true;
                     }
                 }
                 $zip->close();
+            }
+
+            if (! $hasFiles || ! file_exists($zipPath)) {
+                return response()->json(['message' => 'The selected files are missing from storage.'], 404);
             }
 
             $count = $files->count();

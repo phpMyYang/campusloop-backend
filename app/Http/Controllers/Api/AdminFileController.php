@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Support\PublicFileStorage;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\File;
@@ -181,12 +182,11 @@ class AdminFileController extends Controller
 
             if ($zip->open($zipPath, ZipArchive::CREATE) === TRUE) {
                 foreach ($files as $file) {
-                    $rawPath = str_replace('storage/', '', $file->path);
-                    $fullPath = storage_path('app/public/' . ltrim($rawPath, '/\\'));
-                    
-                    if (file_exists($fullPath)) {
-                        $zip->addFile($fullPath, $file->name);
-                        $hasFiles = true; 
+                    $contents = PublicFileStorage::readContents($file->getRawOriginal('path'));
+
+                    if ($contents !== null) {
+                        $zip->addFromString($file->name, $contents);
+                        $hasFiles = true;
                     }
                 }
                 $zip->close();
