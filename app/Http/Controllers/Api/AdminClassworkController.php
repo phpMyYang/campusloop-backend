@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Classwork;
+use App\Models\File;
 use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -186,14 +187,12 @@ class AdminClassworkController extends Controller
             $files = [];
 
             if (!empty($submissionIds)) {
-                $filesData = DB::table('files')
-                    ->whereIn('attachable_type', ['classwork_submission', 'App\\Models\\ClassworkSubmission']) 
+                $filesData = File::whereIn('attachable_type', ['classwork_submission', 'App\\Models\\ClassworkSubmission'])
                     ->whereIn('attachable_id', $submissionIds)
-                    ->whereNull('deleted_at')
                     ->get();
-                    
+
                 foreach ($filesData as $file) {
-                    $files[$file->attachable_id][] = (array) $file;
+                    $files[$file->attachable_id][] = $file;
                 }
             }
 
